@@ -32,6 +32,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   final confirm = TextEditingController();
   final code = TextEditingController();
   final displayName = TextEditingController();
+  final newEmail = TextEditingController();
   final deletePassword = TextEditingController();
   final deleteConfirmation = TextEditingController();
   late StreamSubscription<AuthState> changes;
@@ -146,6 +147,30 @@ class _IdentityScreenState extends State<IdentityScreen> {
     await checkMfa();
   });
 
+  Future<void> changeEmail() => perform(() async {
+    final address = newEmail.text.trim();
+    if (!address.contains('@')) throw StateError('Enter a valid new email.');
+    await supabase.auth.updateUser(UserAttributes(email: address),
+      emailRedirectTo: redirectUrl.isEmpty ? null : redirectUrl);
+    setState(() => message = 'Confirm the change using your verification emails.');
+  });
+
+  Future<void> disableMfa() => perform(() async {
+    final id = factorId;
+    if (id == null) return;
+    final approved = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(title: const Text('Remove authenticator?'),
+        content: const Text('This reduces your account protection. Owner accounts should keep MFA enabled.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove')),
+        ]));
+    if (approved != true) return;
+    await supabase.auth.mfa.unenroll(factorId: id);
+    await supabase.auth.refreshSession();
+    await checkMfa();
+  });
+
   Future<void> saveProfile() => perform(() async {
     await api.request('PATCH', '/account/profile', {'display_name': displayName.text.trim()});
     setState(() => message = 'Profile saved.');
@@ -174,8 +199,32 @@ class _IdentityScreenState extends State<IdentityScreen> {
     if (deletePassword.text.isEmpty || deleteConfirmation.text != 'DELETE') {
       throw StateError('Enter current password and type DELETE to confirm.');
     }
-    final result = await api.request('DELETE', '/account',
-      {'password': deletePassword.text, 'confirm': 'DELETE'});
+    Map<String, dynamic> result;
+    try {
+      result = await api.request('DELETE', '/account',
+        {'password': deletePassword.text, 'confirm': 'DELETE'});
+    } on IdentityRequestException catch (error) {
+      if (error.status != 409 ||
+          error.error != 'store_subscription_needs_cancellation') rethrow;
+      if (!mounted) return;
+      final urls = (error.data['manageUrls'] as List<dynamic>? ?? [])
+          .whereType<String>().where((url) => url.isNotEmpty).join('\\n');
+      final confirmed = await showDialog<bool>(context: context, builder: (ctx) =>
+        AlertDialog(title: const Text('Store subscription warning'),
+          content: Text('Deleting your account does NOT cancel Apple/Google subscriptions. '
+            'Cancel them through your app store.\\n$urls\\n\\nDelete the account anyway?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Keep account')),
+            TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Delete anyway')),
+          ]));
+      if (confirmed != true) return;
+      result = await api.request('DELETE', '/account', {
+        'password': deletePassword.text, 'confirm': 'DELETE',
+        'acknowledge_store_subscriptions': true,
+      });
+    }
     if (result['deleted'] != true) throw StateError('Deletion not confirmed.');
     await supabase.auth.signOut(scope: SignOutScope.local);
     setState(() => message = 'Account deletion confirmed.');
@@ -231,10 +280,17 @@ class _IdentityScreenState extends State<IdentityScreen> {
       FilledButton(onPressed: busy ? null : () => verifyMfa(enrollId!),
         child: const Text('Confirm authenticator')),
     ],
-    if (factorId != null) const Text('Authenticator MFA enabled.'),
+    if (factorId != null) ...[
+      const Text('Authenticator MFA enabled.'),
+      TextButton(onPressed: busy ? null : disableMfa,
+        child: const Text('Remove authenticator')),
+    ],
     const Divider(),
     field('Display name', displayName),
     FilledButton(onPressed: busy ? null : saveProfile, child: const Text('Save profile')),
+    const Divider(),
+    field('New email', newEmail),
+    FilledButton(onPressed: busy ? null : changeEmail, child: const Text('Change email')),
     const Divider(),
     FilledButton(onPressed: busy ? null : listSubscriptions,
       child: const Text('Manage subscriptions')),
@@ -300,7 +356,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   @override
   void dispose() {
     changes.cancel();
-    for (final c in [email, password, confirm, code, displayName, deletePassword, deleteConfirmation]) {
+    for (final c in [email, password, confirm, code, displayName, newEmail, deletePassword, deleteConfirmation]) {
       c.dispose();
     }
     super.dispose();
