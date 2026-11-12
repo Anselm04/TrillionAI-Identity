@@ -116,7 +116,14 @@ export default function App(){
     const pw=window.prompt("Enter your current password to authorize deletion");
     if(!pw)return;
     await submit(async()=>{
-      const r=await api<{deleted:boolean}>("/account","DELETE",{password:pw,confirm:"DELETE"});
+      let r=await api<{deleted:boolean}>("/account","DELETE",{password:pw,confirm:"DELETE"});
+      if(!r.ok && r.status===409 && r.error==="store_subscription_needs_cancellation"){
+        const detail=r.data as {manageUrls?:string[]}|undefined;
+        const urls=(detail?.manageUrls??[]).filter(Boolean).join("\\n");
+        const acknowledged=window.confirm("You have an Apple/Google subscription. Deleting this account does NOT stop its billing. Cancel it in the relevant app store.\\n" + urls + "\\n\\nDelete the account anyway?");
+        if(!acknowledged)return;
+        r=await api<{deleted:boolean}>("/account","DELETE",{password:pw,confirm:"DELETE",acknowledge_store_subscriptions:true});
+      }
       if(!r.ok)throw Error(r.error);
       await supabase.auth.signOut({scope:"local"});
       setProfile(null);setMessage("Account deletion confirmed.");
