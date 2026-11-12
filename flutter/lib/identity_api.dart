@@ -1,0 +1,32 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+const apiUrl = String.fromEnvironment('IDENTITY_API_URL',
+    defaultValue: 'http://10.0.2.2:3000');
+
+class IdentityApi {
+  IdentityApi(this.client);
+  final SupabaseClient client;
+
+  Future<Map<String, dynamic>> request(String method, String path,
+      [Object? body]) async {
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null) throw StateError('Please sign in.');
+    final req = http.Request(method, Uri.parse('$apiUrl$path'));
+    req.headers.addAll({
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    });
+    if (body != null) req.body = jsonEncode(body);
+    final response = await http.Response.fromStream(
+        await req.send().timeout(const Duration(seconds: 20)));
+    final decoded = jsonDecode(response.body);
+    final data = decoded is Map<String, dynamic>
+        ? decoded : <String, dynamic>{};
+    if (response.statusCode >= 400) {
+      throw StateError(data['error']?.toString() ?? 'Request failed');
+    }
+    return data;
+  }
+}
