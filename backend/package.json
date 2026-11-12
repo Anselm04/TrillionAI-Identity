@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit",
     "test": "vitest run",
-    "assign-owner": "tsx scripts/assign-owner.ts"
+    "assign-owner": "tsx scripts/assign-owner.ts",
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.57.0",
