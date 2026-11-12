@@ -5,11 +5,14 @@ No Fly.io, Twilio or other paid infrastructure has been activated.
 
 ## Architecture
 - ONE Supabase Auth project acts as the identity provider for apps that choose to use it.
+- **Shared identity is not automatic cross-domain single-sign-on**. The same verified account can sign in to participating apps, but seamless login across unrelated websites needs separately qualified OIDC/SSO redirects and client registration. Do not claim SSO is working solely because the Supabase project is shared.
 - A common Supabase `user.id` identifies users. Each product must maintain its own tenant/data authorization boundaries.
 - Customer signup requires email confirmation. Phone/SMS is **not required**.
 - Owner identity is assigned **only after personal signup, email confirmation and verified TOTP enrollment**.
 - Customer data, billing and deletion must be supplied as real app-specific hooks. Missing hooks fail closed; no dummy success responses.
 - Password reset is performed through Supabase's verified recovery session, never by simply submitting an arbitrary logged-in JWT to a service-role password reset endpoint.
+- Normal password changes require the current password and a verified account session; other sessions are revoked after the change.
+- Account deletion in a multi-product identity system must coordinate **every linked product**, not just one app. Missing hooks deny deletion instead of orphaning data or silently continuing direct billing.
 
 ## Initial setup (real credentials are private)
 1. Configure Supabase Auth → Email: Require email confirmation. Configure secure email change and TOTP MFA.
@@ -43,5 +46,7 @@ No Fly.io, Twilio or other paid infrastructure has been activated.
 ## Operational constraints
 - Neither paid hosting nor SMTP was provisioned here.
 - This repo's billing, export and deletion hooks intentionally reject incomplete integrations.
+- Platform-specific login callbacks, packaging and full native runner files remain unqualified until Flutter native projects are generated and analyzed.
+- Dependency lockfiles must be generated and committed from a trusted development environment before a release.
 - Do not report production readiness until local and live integration acceptance tests pass.
 - There is no final approval to integrate with AppForge or switch its identity provider.
