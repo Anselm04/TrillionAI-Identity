@@ -4,7 +4,7 @@ import cors from "cors";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { config } from "./config.js";
-import { admin, authClient } from "./supabase.js";
+import { admin, publicAuthClient } from "./supabase.js";
 import { guard, type AuthRequest } from "./guards.js";
 import { hooks } from "./hooks.js";
 
@@ -30,28 +30,28 @@ app.get("/health", (_req, res) => res.json({ status: "ok" }));
 app.post("/auth/register", limiter, wrap(async (req, res) => {
   const v = z.object({ email, password }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Use a valid email and password of at least 12 characters." }); return; }
-  const { error } = await authClient.auth.signUp({ ...v.data, options: { emailRedirectTo: new URL("/verified", config.APP_URL).href } });
+  const { error } = await publicAuthClient().auth.signUp({ ...v.data, options: { emailRedirectTo: new URL("/verified", config.APP_URL).href } });
   if (error && (error.status ?? 400) >= 500) { res.status(503).json({ error: "Email service unavailable" }); return; }
   res.status(202).json(neutral);
 }));
 app.post("/auth/resend", limiter, wrap(async (req, res) => {
   const v = z.object({ email }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Valid email required" }); return; }
-  const { error } = await authClient.auth.resend({ email: v.data.email, type: "signup", options: { emailRedirectTo: new URL("/verified", config.APP_URL).href } });
+  const { error } = await publicAuthClient().auth.resend({ email: v.data.email, type: "signup", options: { emailRedirectTo: new URL("/verified", config.APP_URL).href } });
   if (error && (error.status ?? 400) >= 500) { res.status(503).json({ error: "Email service unavailable" }); return; }
   res.status(202).json(neutral);
 }));
 app.post("/auth/forgot", limiter, wrap(async (req, res) => {
   const v = z.object({ email }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Valid email required" }); return; }
-  const { error } = await authClient.auth.resetPasswordForEmail(v.data.email, { redirectTo: new URL("/reset", config.APP_URL).href });
+  const { error } = await publicAuthClient().auth.resetPasswordForEmail(v.data.email, { redirectTo: new URL("/reset", config.APP_URL).href });
   if (error && (error.status ?? 400) >= 500) { res.status(503).json({ error: "Email service unavailable" }); return; }
   res.status(202).json(neutral);
 }));
 app.post("/auth/login", limiter, wrap(async (req, res) => {
   const v = z.object({ email, password: z.string().max(128) }).safeParse(req.body);
   if (!v.success) { res.status(401).json({ error: "Invalid credentials" }); return; }
-  const { data, error } = await authClient.auth.signInWithPassword(v.data);
+  const { data, error } = await publicAuthClient().auth.signInWithPassword(v.data);
   if (error || !data.session) {
     res.status(error?.code === "email_not_confirmed" ? 403 : 401).json({
       error: error?.code === "email_not_confirmed" ? "email_not_confirmed" : "invalid_credentials",
@@ -64,7 +64,7 @@ app.post("/auth/login", limiter, wrap(async (req, res) => {
 app.post("/auth/refresh", limiter, wrap(async (req, res) => {
   const v = z.object({ refresh_token: z.string().min(20) }).safeParse(req.body);
   if (!v.success) { res.status(401).json({ error: "session_expired" }); return; }
-  const { data, error } = await authClient.auth.refreshSession({ refresh_token: v.data.refresh_token });
+  const { data, error } = await publicAuthClient().auth.refreshSession({ refresh_token: v.data.refresh_token });
   if (error || !data.session) { res.status(401).json({ error: "session_expired" }); return; }
   res.json({ access_token: data.session.access_token, refresh_token: data.session.refresh_token,
     expires_at: data.session.expires_at });
@@ -133,7 +133,7 @@ app.delete("/account", limiter, guard(), wrap(async (req, res) => {
   const v = z.object({ password: z.string().min(1).max(128), confirm: z.literal("DELETE"),
     acknowledge_store_subscriptions: z.boolean().default(false) }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Confirmation and password required" }); return; }
-  const { data: reauth, error: passwordError } = await authClient.auth.signInWithPassword({ email: p.email, password: v.data.password });
+  const { data: reauth, error: passwordError } = await publicAuthClient().auth.signInWithPassword({ email: p.email, password: v.data.password });
   if (passwordError || !reauth.session?.access_token || reauth.user.id !== p.uid) {
     res.status(401).json({ error: "reauthentication_failed" }); return;
   }
