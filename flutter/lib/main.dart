@@ -32,6 +32,8 @@ class _IdentityScreenState extends State<IdentityScreen> {
   final confirm = TextEditingController();
   final code = TextEditingController();
   final displayName = TextEditingController();
+  final deletePassword = TextEditingController();
+  final deleteConfirmation = TextEditingController();
   late StreamSubscription<AuthState> changes;
   SupabaseClient get supabase => Supabase.instance.client;
   IdentityApi get api => IdentityApi(supabase);
@@ -122,6 +124,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
       throw StateError('Passwords must match and contain 12 or more characters.');
     }
     await supabase.auth.updateUser(UserAttributes(password: password.text));
+    await supabase.auth.signOut(scope: SignOutScope.global);
     password.clear(); confirm.clear();
     setState(() { page = 'signin'; message = 'Password updated.'; });
   });
@@ -168,11 +171,11 @@ class _IdentityScreenState extends State<IdentityScreen> {
   });
 
   Future<void> deleteAccount() => perform(() async {
-    if (password.text.isEmpty || confirm.text != 'DELETE') {
+    if (deletePassword.text.isEmpty || deleteConfirmation.text != 'DELETE') {
       throw StateError('Enter current password and type DELETE to confirm.');
     }
     final result = await api.request('DELETE', '/account',
-      {'password': password.text, 'confirm': 'DELETE'});
+      {'password': deletePassword.text, 'confirm': 'DELETE'});
     if (result['deleted'] != true) throw StateError('Deletion not confirmed.');
     await supabase.auth.signOut(scope: SignOutScope.local);
     setState(() => message = 'Account deletion confirmed.');
@@ -256,8 +259,8 @@ class _IdentityScreenState extends State<IdentityScreen> {
     const Divider(),
     const Text('Delete account (irreversible)'),
     const Text('Enter your CURRENT password and type DELETE into confirmation.'),
-    field('Current password', password, obscured: true),
-    field('Type DELETE', confirm),
+    field('Current password', deletePassword, obscured: true),
+    field('Type DELETE', deleteConfirmation),
     FilledButton(onPressed: busy ? null : deleteAccount,
       style: FilledButton.styleFrom(backgroundColor: Colors.red),
       child: const Text('Delete my account')),
@@ -297,7 +300,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   @override
   void dispose() {
     changes.cancel();
-    for (final c in [email, password, confirm, code, displayName]) {
+    for (final c in [email, password, confirm, code, displayName, deletePassword, deleteConfirmation]) {
       c.dispose();
     }
     super.dispose();
