@@ -28,3 +28,15 @@ Do not merge PR #2, deploy it, enable paid services or call it functional until 
 - Web registration/recovery/resend now use its browser Supabase client and PKCE flow consistently; source commit `f58e1eadf70b5c33f32e9ef9f9a69b1d91b27d92`. Live email-link test **not executed**.
 - Backend direct subscription cancellation now requires provider acknowledgment **and** a fresh stored status of `cancelled` before returning success. Deletion reuses the same verification. This is unit-tested, but not integrated with a live provider.
 - Added Vite's official client type reference so `import.meta.env` is typed by the installed Vite package.
+
+## Database compatibility check (read-only)
+- Inspected connected Supabase public table inventory. One active project contains AppForge tables plus an existing `public.profiles` with primary key `id`, **not** the proposed Identity `user_id` key.
+- The initial Identity migration's `CREATE TABLE IF NOT EXISTS public.profiles` would not upgrade that incompatible existing table. Applying it there would leave Identity profile queries broken and would risk colliding with AppForge's data model.
+- Fixed the migration before application: Identity now uses `public.identity_profiles` and `public.identity_global_roles`, with corresponding server queries and owner bootstrap references corrected (commit `82a472e6d9f44913bdc5eaf5622232d23f57be34`).
+- **No SQL migration was applied.** The other connected project timed out during a read-only metadata request and has not been identified as the approved Identity deployment target.
+
+## Current endpoint acceptance prerequisites
+- Decide which Supabase Auth project is the canonical Identity authority, and verify that adopting it will not invalidate existing AppForge accounts.
+- Generate and commit backend/web dependency lockfiles in an online build environment; run real CI and Flutter analysis.
+- Confirm browser PKCE email verification and reset callbacks with genuine SMTP and redirects.
+- Real connected-product adapters must be implemented and tested before account deletion or cancellation can succeed.
