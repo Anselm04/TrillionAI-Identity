@@ -226,6 +226,39 @@ app.delete("/account", limiter, guard(), wrap(async (req, res) => {
   await audit("account_deleted");
   res.json({ deleted: true });
 }));
+app.get("/v1/organisations", guard(), wrap(async (req, res) => {
+  const p = principal(req);
+  const { data: memberships, error } = await admin.from("identity_memberships")
+    .select("organisation_id,role,status").eq("user_id", p.uid).eq("status", "active");
+  if (error) { res.status(503).json({ error: "tenant_memberships_unavailable" }); return; }
+  const active = (memberships ?? []).filter(m => m.status === "active");
+  if (!active.length) { res.json({ organisations: [] }); return; }
+  const ids = active.map(m => m.organisation_id);
+  const { data: orgs, error: orgError } = await admin.from("identity_organisations")
+    .select("id,name").in("id",ids);
+  if (orgError) { res.status(503).json({ error: "organisations_unavailable" }); return; }
+  const byId = new Map(active.map(m => [m.organisation_id,m.role]));
+  res.json({ organisations: (orgs ?? []).map(o => ({ id:o.id,name:o.name,role:byId.get(o.id) })) });
+}));
+app.get("/v1/organisations/:id", guard(), wrap(async (req, res) => {
+  if (!z.string().uuid().safeParse(req.params.id).success) {
+    res.status(400).json({ error: "invalid_organisation_id" }); return;
+  }
+  const p = principal(req);
+  const { canAccessOrganisation } = await import("./organisation.js");
+  const { data: member, error: memberError } = await admin.from("identity_memberships")
+    .select("role,status").eq("organisation_id",req.params.id).eq("user_id",p.uid).maybeSingle();
+  if (memberError) { res.status(503).json({ error: "tenant_membership_unavailable" }); return; }
+  const role = (member?.role ?? null) as import("./organisation.js").OrganisationRole | null;
+  if (!canAccessOrganisation(role,"organisation:read",member?.status ?? null)) {
+    res.status(404).json({ error: "not_found" }); return;
+  }
+  const { data: org, error } = await admin.from("identity_organisations")
+    .select("id,name").eq("id",req.params.id).maybeSingle();
+  if (error) { res.status(503).json({ error: "organisation_unavailable" }); return; }
+  if (!org) { res.status(404).json({ error: "not_found" }); return; }
+  res.json({ organisation:org,role });
+}));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: "internal_error" });

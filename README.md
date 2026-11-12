@@ -1,3 +1,11 @@
+# TrillionAI Identity — authoritative engineering direction
+
+> **Architecture decision (13 November 2026):** One Supabase Auth project is the authentication authority for participating applications. Node.js/TypeScript implements privileged authorization and account lifecycle; React and Flutter are clients. Do **not** deploy or integrate Keycloak, standalone PostgreSQL, Redis or competing identity login implementations from superseded draft PR #1. Preserve its organization-security design and approved UI document, adapted to Supabase. This repository is not production-ready.
+
+The current implementation is on draft PR #2; `main` stays unchanged until qualified. Refer to [local run and acceptance](docs/RUN_AND_ACCEPTANCE.md). Do not enable paid infrastructure or silently integrate AppForge.
+
+---
+
 # TrillionAI-Identity
 Proprietary identity, authentication and access management platform providing secure account registration, login, verification, MFA, password recovery, session management and reusable SDKs for the TrillionAI ecosystem and third-party applications.
 TrillionAI Identity
