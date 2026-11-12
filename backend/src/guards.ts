@@ -15,7 +15,7 @@ export function guard(required: Role = "customer", allowMfaPending = false): Req
       if (authError || !userData.user) { res.status(401).json({ error: "unauthenticated" }); return; }
       const user = userData.user;
       if (!user.email_confirmed_at) { res.status(403).json({ error: "email_verification_required" }); return; }
-      const { data: roleRow, error: roleError } = await admin.from("user_roles").select("role").eq("user_id", user.id).maybeSingle();
+      const { data: roleRow, error: roleError } = await admin.from("identity_global_roles").select("role").eq("user_id", user.id).maybeSingle();
       if (roleError || (roleRow && !["owner","admin"].includes(roleRow.role))) {
         res.status(503).json({ error: "authorization_unavailable" }); return;
       }

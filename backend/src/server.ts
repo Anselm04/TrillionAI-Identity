@@ -145,14 +145,14 @@ app.get("/me", guard("customer", true), (req, res) => {
   res.json({ id: p.uid, email: p.email, role: p.role, mfa_enabled: Boolean(p.totpFactorId) });
 });
 app.get("/account/profile", guard(), wrap(async (req, res) => {
-  const { data, error } = await admin.from("profiles").select("display_name").eq("user_id", principal(req).uid).maybeSingle();
+  const { data, error } = await admin.from("identity_profiles").select("display_name").eq("user_id", principal(req).uid).maybeSingle();
   if (error) { res.status(503).json({ error: "profile_unavailable" }); return; }
   res.json({ display_name: data?.display_name ?? "" });
 }));
 app.patch("/account/profile", limiter, guard(), wrap(async (req, res) => {
   const v = z.object({ display_name: z.string().trim().max(80) }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Invalid display name" }); return; }
-  const { error } = await admin.from("profiles").upsert({ user_id: principal(req).uid, display_name: v.data.display_name });
+  const { error } = await admin.from("identity_profiles").upsert({ user_id: principal(req).uid, display_name: v.data.display_name });
   if (error) { res.status(503).json({ error: "profile_not_saved" }); return; }
   res.json({ message: "Profile saved" });
 }));
@@ -180,7 +180,7 @@ app.post("/account/subscriptions/:id/cancel", limiter, guard(), wrap(async (req,
 app.get("/account/export", guard(), wrap(async (req, res) => {
   if (!hooks.exportUserData) { res.status(501).json({ error: "data_export_not_connected" }); return; }
   const p = principal(req);
-  const { data } = await admin.from("profiles").select("display_name").eq("user_id", p.uid).maybeSingle();
+  const { data } = await admin.from("identity_profiles").select("display_name").eq("user_id", p.uid).maybeSingle();
   const appData = await hooks.exportUserData(p.uid);
   await audit("data_exported", p.uid);
   res.setHeader("Content-Disposition", 'attachment; filename="my-data.json"');

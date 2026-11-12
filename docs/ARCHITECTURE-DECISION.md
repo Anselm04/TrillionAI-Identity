@@ -23,3 +23,6 @@ Draft PR #1 introduced Keycloak, additional PostgreSQL, Redis, OIDC/JWKS verific
 - PR #2 is the single implementation PR.
 - PR #1 is preserved in Git history but superseded/closed rather than merged.
 - Do not cherry-pick PR #1's Docker Compose, Keycloak, duplicate login frontend, or incompatible Fastify server.
+
+## Database coexistence
+The project may coexist with AppForge's existing `public.profiles` table. Use only `public.identity_profiles` and `public.identity_global_roles` for this service. Do not overwrite or alter existing AppForge profile data. Before applying migrations to any shared project, verify every table name and migration in a disposable test database.

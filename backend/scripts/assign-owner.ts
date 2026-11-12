@@ -13,7 +13,7 @@ if (error || !data.user || data.user.email?.toLowerCase()!==expectedEmail ||
   console.error("Identity does not match confirmed email plus verified TOTP enrollment.");
   process.exit(1);
 }
-const existing = await admin.from("user_roles").select("user_id").eq("role","owner").maybeSingle();
+const existing = await admin.from("identity_global_roles").select("user_id").eq("role","owner").maybeSingle();
 if (existing.error || (existing.data && existing.data.user_id !== id)) {
   console.error("Owner role already assigned or role store unavailable.");
   process.exit(1);
@@ -22,7 +22,7 @@ if (existing.data?.user_id === id) {
   console.info("This verified user already has the owner role.");
   process.exit(0);
 }
-const { error: assignError } = await admin.from("user_roles").insert({user_id:id,role:"owner"});
+const { error: assignError } = await admin.from("identity_global_roles").insert({user_id:id,role:"owner"});
 if (assignError) {
   console.error("Owner assignment failed:",assignError.message);
   process.exit(1);
