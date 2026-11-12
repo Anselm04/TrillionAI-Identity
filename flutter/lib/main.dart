@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'identity_api.dart';
+import 'validation.dart';
 
 const redirectUrl = String.fromEnvironment('AUTH_REDIRECT_URL');
 
@@ -92,9 +93,8 @@ class _IdentityScreenState extends State<IdentityScreen> {
   }
 
   Future<void> register() => perform(() async {
-    if (password.text.length < 12 || password.text != confirm.text) {
-      throw StateError('Use a matching password of at least 12 characters.');
-    }
+    final error = registrationValidation(email.text, password.text, confirm.text);
+    if (error != null) throw StateError(error);
     await supabase.auth.signUp(email: email.text.trim(), password: password.text,
       emailRedirectTo: redirectUrl.isEmpty ? null : redirectUrl);
     setState(() => message = 'Check your email and click the confirmation link.');
