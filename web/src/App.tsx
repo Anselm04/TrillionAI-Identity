@@ -77,6 +77,7 @@ export default function App(){
   async function setupMfa(){await submit(async()=>{
     const {data,error}=await supabase.auth.mfa.enroll({factorType:"totp",friendlyName:"TrillionAI authenticator"});
     if(error)throw Error(error.message);
+    if(!data.totp?.qr_code || !data.totp.secret)throw Error("Authenticator setup did not return enrollment details");
     setEnrolling({id:data.id,qr:data.totp.qr_code,secret:data.totp.secret});
   });}
   async function confirmMfa(e:FormEvent){e.preventDefault();if(!enrolling)return;await submit(async()=>{
@@ -88,7 +89,8 @@ export default function App(){
     if(password.length<12||password!==confirm)throw Error("New passwords must match and be at least 12 characters");
     const {error}=await supabase.auth.updateUser({password});
     if(error)throw Error(error.message);
-    setMode("normal");setPassword("");setConfirm("");setMessage("Password updated. Review your active sessions.");
+    await supabase.auth.signOut({scope:"global"});
+    setMode("normal");setPassword("");setConfirm("");setMessage("Password updated. Sign in again with the new password.");
   });}
   async function cancelSubscription(s:Subscription){
     await submit(async()=>{
