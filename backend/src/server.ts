@@ -11,8 +11,14 @@ import { directBillingIsCancelled, storeSubscriptionsRequireAcknowledgement } fr
 
 export const app = express();
 app.disable("x-powered-by");
+if(config.TRUST_PROXY_HOPS>0)app.set("trust proxy",config.TRUST_PROXY_HOPS);
 app.use(helmet());
-app.use(cors({ origin: new URL(config.APP_URL).origin, credentials: false }));
+const allowedOrigins = new Set([new URL(config.APP_URL).origin,
+  ...(config.ALLOWED_ORIGINS ?? "").split(",").map(s=>s.trim()).filter(Boolean)]);
+app.use(cors({ origin: (origin, callback) => {
+  if (!origin || allowedOrigins.has(origin)) callback(null, true);
+  else callback(new Error("origin_not_allowed"));
+}, credentials: false }));
 app.use(express.json({ limit: "16kb" }));
 app.use((_, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
 const limiter = rateLimit({ windowMs: 15 * 60_000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false });
