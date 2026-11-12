@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -38,6 +40,15 @@ class _IdentityHomeState extends State<IdentityHome> {
   final token = TextEditingController();
   String notice = '';
   bool busy = false;
+  late final StreamSubscription<AuthState> authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   SupabaseClient get client => Supabase.instance.client;
 
@@ -46,6 +57,8 @@ class _IdentityHomeState extends State<IdentityHome> {
     try {
       await action();
     } on AuthException catch (error) {
+      if (mounted) setState(() => notice = error.message);
+    } on FormatException catch (error) {
       if (mounted) setState(() => notice = error.message);
     } catch (_) {
       if (mounted) setState(() => notice = 'Request failed. Please try again.');
@@ -56,6 +69,7 @@ class _IdentityHomeState extends State<IdentityHome> {
 
   @override
   void dispose() {
+    authSubscription.cancel();
     email.dispose();
     password.dispose();
     token.dispose();
@@ -116,7 +130,7 @@ class _IdentityHomeState extends State<IdentityHome> {
               ],
               const SizedBox(height: 16),
               if (busy) const LinearProgressIndicator(),
-              if (notice.isNotEmpty) Text(notice, role: TextRole.status),
+              if (notice.isNotEmpty) Text(notice),
             ]),
           ),
         ),
