@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import { api, publicPost } from "./api";
+import { api } from "./api";
 type Profile = { id:string; email:string; role:string; mfa_enabled:boolean };
 type Subscription = {id:string;plan:string;amountLabel:string;status:string;renewsAt:string|null;accessUntil:string|null;store:string;manageUrl?:string};
 function Field({label,type="text",value,onChange}:{label:string;type?:string;value:string;onChange:(value:string)=>void}) {
@@ -56,8 +56,12 @@ export default function App(){
   async function submit(fn:()=>Promise<void>){setBusy(true);setMessage("");try{await fn();}catch(e){setMessage(e instanceof Error?e.message:"Request failed");}finally{setBusy(false);}}
   async function register(e:FormEvent){e.preventDefault();await submit(async()=>{
     if(password!==confirm)throw Error("Passwords do not match");
-    const r=await publicPost("/auth/register",{email,password});
-    if(!r.ok)throw Error(r.error);
+    if(password.length<12||password.length>128)throw Error("Password must be 12–128 characters");
+    const {error}=await supabase.auth.signUp({
+      email:email.trim(),password,
+      options:{emailRedirectTo:window.location.origin+"/verified"},
+    });
+    if(error)throw Error(error.message);
     setMessage("Check your inbox, confirm the link, then sign in.");
   });}
   async function signIn(e:FormEvent){e.preventDefault();await submit(async()=>{
@@ -65,8 +69,18 @@ export default function App(){
     if(error)throw Error(error.message);
   });}
   async function requestEmail(e:FormEvent){e.preventDefault();await submit(async()=>{
-    const r=await publicPost(page==="forgot"?"/auth/forgot":"/auth/resend",{email});
-    if(!r.ok)throw Error(r.error);
+    const address=email.trim();
+    if(page==="forgot"){
+      const {error}=await supabase.auth.resetPasswordForEmail(address,{
+        redirectTo:window.location.origin+"/reset",
+      });
+      if(error && error.status!==404)throw Error(error.message);
+    }else{
+      const {error}=await supabase.auth.resend({
+        email:address,type:"signup",options:{emailRedirectTo:window.location.origin+"/verified"},
+      });
+      if(error && error.status!==404)throw Error(error.message);
+    }
     setMessage("If this address is eligible, an email has been requested.");
   });}
   async function signOut(){await submit(async()=>{const {error}=await supabase.auth.signOut({scope:"global"});if(error)throw Error(error.message);setProfile(null);});}
