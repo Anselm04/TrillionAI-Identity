@@ -32,27 +32,43 @@ app.post("/auth/register", limiter, wrap(async (req, res) => {
   const v = z.object({ email, password }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Use a valid email and password of at least 12 characters." }); return; }
   const { error } = await publicAuthClient().auth.signUp({ ...v.data, options: { emailRedirectTo: new URL("/verified", config.APP_URL).href } });
-  if (error && (error.status ?? 400) >= 500) { res.status(503).json({ error: "Email service unavailable" }); return; }
+  if (error) {
+    res.status(error.status === 429 ? 429 : 503).json({
+      error: error.status === 429 ? "too_many_requests" : "registration_unavailable",
+    }); return;
+  }
   res.status(202).json(neutral);
 }));
 app.post("/auth/resend", limiter, wrap(async (req, res) => {
   const v = z.object({ email }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Valid email required" }); return; }
   const { error } = await publicAuthClient().auth.resend({ email: v.data.email, type: "signup", options: { emailRedirectTo: new URL("/verified", config.APP_URL).href } });
-  if (error && (error.status ?? 400) >= 500) { res.status(503).json({ error: "Email service unavailable" }); return; }
+  if (error) {
+    if (["user_not_found", "email_not_found", "email_already_confirmed"].includes(error.code ?? "")) {
+      res.status(202).json(neutral); return;
+    }
+    res.status(error.status === 429 ? 429 : 503).json({ error: "verification_delivery_unavailable" }); return;
+  }
   res.status(202).json(neutral);
 }));
 app.post("/auth/forgot", limiter, wrap(async (req, res) => {
   const v = z.object({ email }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Valid email required" }); return; }
   const { error } = await publicAuthClient().auth.resetPasswordForEmail(v.data.email, { redirectTo: new URL("/reset", config.APP_URL).href });
-  if (error && (error.status ?? 400) >= 500) { res.status(503).json({ error: "Email service unavailable" }); return; }
+  if (error) {
+    if (["user_not_found", "email_not_found"].includes(error.code ?? "")) {
+      res.status(202).json(neutral); return;
+    }
+    res.status(error.status === 429 ? 429 : 503).json({ error: "recovery_delivery_unavailable" }); return;
+  }
   res.status(202).json(neutral);
 }));
 app.post("/auth/login", limiter, wrap(async (req, res) => {
   const v = z.object({ email, password: z.string().max(128) }).safeParse(req.body);
   if (!v.success) { res.status(401).json({ error: "Invalid credentials" }); return; }
   const { data, error } = await publicAuthClient().auth.signInWithPassword(v.data);
+  if (error?.status === 429) { res.status(429).json({ error: "too_many_requests" }); return; }
+  if (error && error.status >= 500) { res.status(503).json({ error: "authentication_unavailable" }); return; }
   if (error || !data.session) {
     res.status(error?.code === "email_not_confirmed" ? 403 : 401).json({
       error: error?.code === "email_not_confirmed" ? "email_not_confirmed" : "invalid_credentials",
@@ -66,6 +82,7 @@ app.post("/auth/refresh", limiter, wrap(async (req, res) => {
   const v = z.object({ refresh_token: z.string().min(20) }).safeParse(req.body);
   if (!v.success) { res.status(401).json({ error: "session_expired" }); return; }
   const { data, error } = await publicAuthClient().auth.refreshSession({ refresh_token: v.data.refresh_token });
+  if (error?.status && error.status >= 500) { res.status(503).json({ error: "authentication_unavailable" }); return; }
   if (error || !data.session) { res.status(401).json({ error: "session_expired" }); return; }
   res.json({ access_token: data.session.access_token, refresh_token: data.session.refresh_token,
     expires_at: data.session.expires_at });
