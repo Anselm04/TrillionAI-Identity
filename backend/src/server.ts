@@ -130,20 +130,38 @@ app.delete("/account", limiter, guard(), wrap(async (req, res) => {
   if (!hooks.listSubscriptions || !hooks.cancelSubscription || !hooks.deleteUserData) {
     res.status(501).json({ error: "account_deletion_not_configured" }); return;
   }
-  const v = z.object({ password: z.string().min(1).max(128), confirm: z.literal("DELETE") }).safeParse(req.body);
+  const v = z.object({ password: z.string().min(1).max(128), confirm: z.literal("DELETE"),
+    acknowledge_store_subscriptions: z.boolean().default(false) }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Confirmation and password required" }); return; }
-  const { error: passwordError } = await authClient.auth.signInWithPassword({ email: p.email, password: v.data.password });
-  if (passwordError) { res.status(401).json({ error: "reauthentication_failed" }); return; }
+  const { data: reauth, error: passwordError } = await authClient.auth.signInWithPassword({ email: p.email, password: v.data.password });
+  if (passwordError || !reauth.session?.access_token || reauth.user.id !== p.uid) {
+    res.status(401).json({ error: "reauthentication_failed" }); return;
+  }
+  // Revoke the short-lived password-check session so it cannot remain active.
+  const revoke = await fetch(`${config.SUPABASE_URL}/auth/v1/logout?scope=local`, {
+    method: "POST",
+    headers: { apikey: config.SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${reauth.session.access_token}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!revoke.ok) { res.status(502).json({ error: "reauthentication_cleanup_failed" }); return; }
   const subscriptions = await hooks.listSubscriptions(p.uid);
-  if (subscriptions.some(x => x.store !== "direct" && x.status !== "cancelled")) {
-    res.status(409).json({ error: "store_subscription_needs_cancellation", manageUrls: subscriptions.filter(x=>x.store!=="direct" && x.status!=="cancelled").map(x=>x.manageUrl) }); return;
+  if (!v.data.acknowledge_store_subscriptions &&
+      subscriptions.some(x => x.store !== "direct" && x.status !== "cancelled")) {
+    res.status(409).json({ error: "store_subscription_needs_cancellation",
+      manageUrls: subscriptions.filter(x=>x.store!=="direct" && x.status!=="cancelled").map(x=>x.manageUrl) });
+    return;
   }
   for (const s of subscriptions.filter(x => x.store === "direct" && x.status !== "cancelled")) {
     const result = await hooks.cancelSubscription(p.uid, s.id);
     if (!result.cancelled) { res.status(502).json({ error: "billing_not_cancelled" }); return; }
   }
   const remaining = await hooks.listSubscriptions(p.uid);
-  if (remaining.some(x => x.status !== "cancelled")) { res.status(502).json({ error: "billing_not_confirmed" }); return; }
+  if (remaining.some(x => x.store === "direct" && x.status !== "cancelled")) {
+    res.status(502).json({ error: "direct_billing_not_confirmed" }); return;
+  }
+  // Apple/Google recurring billing must be cancelled in the relevant store.
+  // The user may explicitly acknowledge that risk without losing deletion rights.
   await hooks.deleteUserData(p.uid);
   const { error } = await admin.auth.admin.deleteUser(p.uid);
   if (error) { res.status(502).json({ error: "identity_deletion_not_confirmed" }); return; }
