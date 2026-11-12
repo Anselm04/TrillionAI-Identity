@@ -5,6 +5,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 const apiUrl = String.fromEnvironment('IDENTITY_API_URL',
     defaultValue: 'http://10.0.2.2:3000');
 
+class IdentityRequestException implements Exception {
+  IdentityRequestException(this.status, this.error, this.data);
+  final int status;
+  final String error;
+  final Map<String, dynamic> data;
+  @override String toString() => error;
+}
+
 class IdentityApi {
   IdentityApi(this.client);
   final SupabaseClient client;
@@ -25,7 +33,8 @@ class IdentityApi {
     final data = decoded is Map<String, dynamic>
         ? decoded : <String, dynamic>{};
     if (response.statusCode >= 400) {
-      throw StateError(data['error']?.toString() ?? 'Request failed');
+      throw IdentityRequestException(response.statusCode,
+        data['error']?.toString() ?? 'Request failed', data);
     }
     return data;
   }
