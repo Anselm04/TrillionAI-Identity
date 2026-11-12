@@ -13,6 +13,7 @@ export default function App(){
   const [page,setPage]=useState<"login"|"signup"|"forgot"|"resend">("login");
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
+  const [currentPassword,setCurrentPassword]=useState("");
   const [confirm,setConfirm]=useState("");
   const [code,setCode]=useState("");
   const [message,setMessage]=useState("");
@@ -87,10 +88,20 @@ export default function App(){
   });}
   async function updatePassword(e:FormEvent){e.preventDefault();await submit(async()=>{
     if(password.length<12||password!==confirm)throw Error("New passwords must match and be at least 12 characters");
-    const {error}=await supabase.auth.updateUser({password});
-    if(error)throw Error(error.message);
-    await supabase.auth.signOut({scope:"global"});
-    setMode("normal");setPassword("");setConfirm("");setMessage("Password updated. Sign in again with the new password.");
+    if(mode==="recover"){
+      const {error}=await supabase.auth.updateUser({password});
+      if(error)throw Error(error.message);
+      await supabase.auth.signOut({scope:"global"});
+    } else {
+      if(!currentPassword)throw Error("Enter your current password");
+      const r=await api<{updated:boolean}>("/auth/change-password","POST",{
+        current_password:currentPassword,new_password:password,
+      });
+      if(!r.ok)throw Error(r.error);
+      await supabase.auth.signOut({scope:"local"});
+    }
+    setCurrentPassword("");setMode("normal");setPassword("");setConfirm("");
+    setMessage("Password updated. Sign in again with the new password.");
   });}
   async function cancelSubscription(s:Subscription){
     await submit(async()=>{
@@ -168,6 +179,7 @@ export default function App(){
           if(error)throw Error(error.message);setMessage("Check verification emails to complete change.");
         })}>Change email</button></section>
       <section><h2>Change password</h2><form onSubmit={updatePassword}>
+        <Field label="Current password" type="password" value={currentPassword} onChange={setCurrentPassword}/>
         <Field label="New password (12+ characters)" type="password" value={password} onChange={setPassword}/>
         <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm}/>
         <button disabled={busy}>Update password</button></form></section>
