@@ -79,6 +79,40 @@ app.post("/auth/logout", guard("customer", true), wrap(async (req, res) => {
   await audit("logout", principal(req).uid);
   res.json({ message: "Signed out" });
 }));
+app.post("/auth/change-password", guard(), limiter, wrap(async (req, res) => {
+  const valid = z.object({ current_password: z.string().min(1).max(128),
+    new_password: password }).safeParse(req.body);
+  if (!valid.success) { res.status(400).json({ error: "A current password and a new 12+ character password are required" }); return; }
+  const p = principal(req);
+  const temporary = await publicAuthClient().auth.signInWithPassword({
+    email: p.email, password: valid.data.current_password,
+  });
+  if (temporary.error || !temporary.data.session?.access_token ||
+      temporary.data.user.id !== p.uid) {
+    res.status(401).json({ error: "current_password_invalid" }); return;
+  }
+  // Terminate the authentication session created solely to check the current password.
+  const tempLogout = await fetch(`${config.SUPABASE_URL}/auth/v1/logout?scope=local`, {
+    method: "POST",
+    headers: { apikey: config.SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${temporary.data.session.access_token}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!tempLogout.ok) { res.status(502).json({ error: "reauthentication_cleanup_failed" }); return; }
+  const { error } = await admin.auth.admin.updateUserById(p.uid, {
+    password: valid.data.new_password,
+  });
+  if (error) { res.status(503).json({ error: "password_not_updated" }); return; }
+  const logout = await fetch(`${config.SUPABASE_URL}/auth/v1/logout?scope=global`, {
+    method: "POST",
+    headers: { apikey: config.SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${p.token}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  await audit("password_changed", p.uid);
+  if (!logout.ok) { res.status(502).json({ error: "password_changed_session_revoke_unconfirmed" }); return; }
+  res.json({ updated: true, signedOut: true });
+}));
 app.get("/me", guard("customer", true), (req, res) => {
   const p = principal(req);
   if (p.totpFactorId && p.aal !== "aal2") {
