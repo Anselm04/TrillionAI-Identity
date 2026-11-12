@@ -1,5 +1,5 @@
 import type { Request, RequestHandler } from "express";
-import { admin, authClient } from "./supabase.js";
+import { admin, publicAuthClient } from "./supabase.js";
 import { checkAccess, type Role } from "./authz.js";
 
 export type Principal = { uid: string; email: string; role: Role; token: string; aal: string; totpFactorId?: string };
@@ -10,6 +10,7 @@ export function guard(required: Role = "customer", allowMfaPending = false): Req
     if (!match) { res.status(401).json({ error: "unauthenticated" }); return; }
     const token = match[1]!;
     try {
+      const authClient = publicAuthClient();
       const { data: userData, error: authError } = await authClient.auth.getUser(token);
       if (authError || !userData.user) { res.status(401).json({ error: "unauthenticated" }); return; }
       const user = userData.user;
