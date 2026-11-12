@@ -44,6 +44,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   String page = 'signin';
   String message = '';
   String? factorId;
+  String? accountRole;
   String? enrollId;
   String? qr;
   String? secret;
@@ -65,18 +66,27 @@ class _IdentityScreenState extends State<IdentityScreen> {
 
   Future<void> checkMfa() async {
     if (supabase.auth.currentSession == null) {
-      if (mounted) setState(() { needsMfa = false; factorId = null; });
+      if (mounted) setState(() { needsMfa = false; factorId = null; accountRole = null; });
       return;
     }
     try {
       final level = supabase.auth.mfa.getAuthenticatorAssuranceLevel();
       final factors = await supabase.auth.mfa.listFactors();
       final totp = factors.totp.where((f) => f.status == FactorStatus.verified).toList();
+      final pending = totp.isNotEmpty &&
+        level.currentLevel != AuthenticatorAssuranceLevels.aal2;
       if (mounted) setState(() {
         factorId = totp.isEmpty ? null : totp.first.id;
-        needsMfa = factorId != null &&
-          level.currentLevel != AuthenticatorAssuranceLevels.aal2;
+        needsMfa = pending;
       });
+      if (!pending) {
+        try {
+          final me = await api.request('GET', '/me');
+          if (mounted) setState(() => accountRole = me['role'] as String?);
+        } catch (_) {
+          if (mounted) setState(() => accountRole = null);
+        }
+      }
     } catch (_) {
       if (mounted) setState(() => message = 'MFA check unavailable. Please retry.');
     }
@@ -138,6 +148,16 @@ class _IdentityScreenState extends State<IdentityScreen> {
     }
     password.clear(); confirm.clear(); currentPassword.clear();
     setState(() { page = 'signin'; message = 'Password updated.'; });
+  });
+
+  Future<void> stepUpOwner() => perform(() async {
+    final id = factorId;
+    if (id == null || accountRole != 'owner') throw StateError('Owner MFA not configured.');
+    await supabase.auth.mfa.challengeAndVerify(factorId: id, code: code.text.trim());
+    code.clear();
+    final verified = await api.request('GET', '/owner/ping');
+    if (verified['ok'] != true) throw StateError('Privileged access not confirmed.');
+    setState(() => message = 'Fresh owner verification accepted.');
   });
 
   Future<void> startMfa() => perform(() async {
@@ -294,6 +314,14 @@ class _IdentityScreenState extends State<IdentityScreen> {
       const Text('Authenticator MFA enabled.'),
       TextButton(onPressed: busy ? null : disableMfa,
         child: const Text('Remove authenticator')),
+    ],
+    if (accountRole == 'owner' && factorId != null) ...[
+      const Divider(),
+      const Text('Private owner verification'),
+      const Text('A fresh authenticator challenge is required for privileged actions.'),
+      field('Owner verification code', code),
+      FilledButton(onPressed: busy ? null : stepUpOwner,
+        child: const Text('Verify owner access')),
     ],
     const Divider(),
     field('Display name', displayName),
