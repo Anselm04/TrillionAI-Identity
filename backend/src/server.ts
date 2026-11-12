@@ -7,6 +7,7 @@ import { config } from "./config.js";
 import { admin, publicAuthClient } from "./supabase.js";
 import { guard, type AuthRequest } from "./guards.js";
 import { hooks } from "./hooks.js";
+import { cancelDirectSubscriptionVerified, BillingVerificationError } from "./billing.js";
 import { directBillingIsCancelled, storeSubscriptionsRequireAcknowledgement } from "./deletion.js";
 
 export const app = express();
@@ -167,11 +168,14 @@ app.post("/account/subscriptions/:id/cancel", limiter, guard(), wrap(async (req,
   if (current.store !== "direct") {
     res.status(409).json({ error: "store_managed_subscription", manageUrl: current.manageUrl }); return;
   }
-  const result = await hooks.cancelSubscription(uid, current.id);
-  const final = (await hooks.listSubscriptions(uid)).find(x => x.id === current.id);
-  if (!result.cancelled || final?.status !== "cancelled") { res.status(502).json({ error: "cancellation_not_confirmed" }); return; }
-  await audit("subscription_cancelled", uid);
-  res.json({ cancelled: true, accessUntil: result.accessUntil });
+  try {
+    const result = await cancelDirectSubscriptionVerified(hooks, uid, current);
+    await audit("subscription_cancelled", uid);
+    res.json({ cancelled: true, accessUntil: result.accessUntil });
+  } catch (e) {
+    res.status(502).json({ error: e instanceof BillingVerificationError
+      ? e.code : "cancellation_not_confirmed" });
+  }
 }));
 app.get("/account/export", guard(), wrap(async (req, res) => {
   if (!hooks.exportUserData) { res.status(501).json({ error: "data_export_not_connected" }); return; }
@@ -210,9 +214,13 @@ app.delete("/account", limiter, guard(), wrap(async (req, res) => {
       manageUrls: subscriptions.filter(x=>x.store!=="direct" && x.status!=="cancelled").map(x=>x.manageUrl) });
     return;
   }
-  for (const s of subscriptions.filter(x => x.store === "direct" && x.status !== "cancelled")) {
-    const result = await hooks.cancelSubscription(p.uid, s.id);
-    if (!result.cancelled) { res.status(502).json({ error: "billing_not_cancelled" }); return; }
+  for (const subscription of subscriptions.filter(x => x.store === "direct" && x.status !== "cancelled")) {
+    try {
+      await cancelDirectSubscriptionVerified(hooks, p.uid, subscription);
+    } catch (e) {
+      res.status(502).json({ error: e instanceof BillingVerificationError
+        ? e.code : "billing_not_cancelled" }); return;
+    }
   }
   const remaining = await hooks.listSubscriptions(p.uid);
   if (!directBillingIsCancelled(remaining)) {
