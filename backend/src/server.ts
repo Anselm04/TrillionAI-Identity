@@ -7,6 +7,7 @@ import { config } from "./config.js";
 import { admin, publicAuthClient } from "./supabase.js";
 import { guard, type AuthRequest } from "./guards.js";
 import { hooks } from "./hooks.js";
+import { directBillingIsCancelled, storeSubscriptionsRequireAcknowledgement } from "./deletion.js";
 
 export const app = express();
 app.disable("x-powered-by");
@@ -147,7 +148,7 @@ app.delete("/account", limiter, guard(), wrap(async (req, res) => {
   if (!revoke.ok) { res.status(502).json({ error: "reauthentication_cleanup_failed" }); return; }
   const subscriptions = await hooks.listSubscriptions(p.uid);
   if (!v.data.acknowledge_store_subscriptions &&
-      subscriptions.some(x => x.store !== "direct" && x.status !== "cancelled")) {
+      storeSubscriptionsRequireAcknowledgement(subscriptions)) {
     res.status(409).json({ error: "store_subscription_needs_cancellation",
       manageUrls: subscriptions.filter(x=>x.store!=="direct" && x.status!=="cancelled").map(x=>x.manageUrl) });
     return;
@@ -157,7 +158,7 @@ app.delete("/account", limiter, guard(), wrap(async (req, res) => {
     if (!result.cancelled) { res.status(502).json({ error: "billing_not_cancelled" }); return; }
   }
   const remaining = await hooks.listSubscriptions(p.uid);
-  if (remaining.some(x => x.store === "direct" && x.status !== "cancelled")) {
+  if (!directBillingIsCancelled(remaining)) {
     res.status(502).json({ error: "direct_billing_not_confirmed" }); return;
   }
   // Apple/Google recurring billing must be cancelled in the relevant store.
