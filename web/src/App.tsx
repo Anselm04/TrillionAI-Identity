@@ -75,6 +75,15 @@ export default function App(){
     if(error)throw Error(error.message);
     setCode("");setEnrolling(null);await reload();
   });}
+  async function verifyOwnerStepUp(e:FormEvent){e.preventDefault();await submit(async()=>{
+    if(!factor)throw Error("Enroll an authenticator before owner access");
+    const {error}=await supabase.auth.mfa.challengeAndVerify({factorId:factor,code:code.trim()});
+    if(error)throw Error(error.message);
+    setCode("");
+    const approved=await api<{ok:boolean}>("/owner/ping");
+    if(!approved.ok)throw Error(approved.error);
+    setMessage("Owner MFA verified. Server-side privileged access is active for this session.");
+  });}
   async function setupMfa(){await submit(async()=>{
     const {data,error}=await supabase.auth.mfa.enroll({factorType:"totp",friendlyName:"TrillionAI authenticator"});
     if(error)throw Error(error.message);
@@ -170,6 +179,13 @@ export default function App(){
           <Field label="Six-digit code" value={code} onChange={setCode}/><button disabled={busy}>Confirm MFA</button></form>}
         {factor&&<p className="good">Authenticator MFA enrolled</p>}
         <p className="muted">Only the server can assign owner permissions.</p></section>
+      {profile?.role==="owner"&&<section><h2>Private owner verification</h2>
+        <p>The server requires a fresh authenticator challenge for privileged operations.</p>
+        <form onSubmit={verifyOwnerStepUp}>
+          <Field label="Fresh six-digit code" value={code} onChange={setCode}/>
+          <button disabled={busy}>Verify private owner access</button>
+        </form>
+      </section>}
       <section><h2>Profile</h2><Field label="Display name" value={name} onChange={setName}/>
         <button onClick={()=>submit(async()=>{const r=await api("/account/profile","PATCH",{display_name:name});if(!r.ok)throw Error(r.error);setMessage("Profile saved");})}>Save profile</button></section>
       <section><h2>Change email</h2><p>New email must be verified.</p>
