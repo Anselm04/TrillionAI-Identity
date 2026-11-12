@@ -29,6 +29,7 @@ class IdentityScreen extends StatefulWidget {
 class _IdentityScreenState extends State<IdentityScreen> {
   final email = TextEditingController();
   final password = TextEditingController();
+  final currentPassword = TextEditingController();
   final confirm = TextEditingController();
   final code = TextEditingController();
   final displayName = TextEditingController();
@@ -124,9 +125,18 @@ class _IdentityScreenState extends State<IdentityScreen> {
     if (password.text.length < 12 || password.text != confirm.text) {
       throw StateError('Passwords must match and contain 12 or more characters.');
     }
-    await supabase.auth.updateUser(UserAttributes(password: password.text));
-    await supabase.auth.signOut(scope: SignOutScope.global);
-    password.clear(); confirm.clear();
+    if (page == 'reset') {
+      await supabase.auth.updateUser(UserAttributes(password: password.text));
+      await supabase.auth.signOut(scope: SignOutScope.global);
+    } else {
+      if (currentPassword.text.isEmpty) throw StateError('Enter your current password.');
+      final changed = await api.request('POST', '/auth/change-password', {
+        'current_password': currentPassword.text, 'new_password': password.text,
+      });
+      if (changed['updated'] != true) throw StateError('Password change was not confirmed.');
+      await supabase.auth.signOut(scope: SignOutScope.local);
+    }
+    password.clear(); confirm.clear(); currentPassword.clear();
     setState(() { page = 'signin'; message = 'Password updated.'; });
   });
 
@@ -309,6 +319,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
     FilledButton(onPressed: busy ? null : exportData, child: const Text('Export my data')),
     const Divider(),
     const Text('Change password'),
+    field('Current password', currentPassword, obscured: true),
     field('New password', password, obscured: true),
     field('Confirm new password', confirm, obscured: true),
     FilledButton(onPressed: busy ? null : savePassword, child: const Text('Change password')),
@@ -356,7 +367,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   @override
   void dispose() {
     changes.cancel();
-    for (final c in [email, password, confirm, code, displayName, newEmail, deletePassword, deleteConfirmation]) {
+    for (final c in [email, password, currentPassword, confirm, code, displayName, newEmail, deletePassword, deleteConfirmation]) {
       c.dispose();
     }
     super.dispose();
