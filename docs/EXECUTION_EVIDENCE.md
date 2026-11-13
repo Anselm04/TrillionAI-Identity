@@ -40,3 +40,11 @@ Do not merge PR #2, deploy it, enable paid services or call it functional until 
 - Generate and commit backend/web dependency lockfiles in an online build environment; run real CI and Flutter analysis.
 - Confirm browser PKCE email verification and reset callbacks with genuine SMTP and redirects.
 - Real connected-product adapters must be implemented and tested before account deletion or cancellation can succeed.
+
+## 13 November — next engineering milestone, offline verification
+- Node 22.16.0 standalone test run against **Git-blob-identical** copies of `backend/src/authz.ts`, `backend/src/organisation.ts`, `backend/src/mfa.ts`, `backend/src/billing.ts`, and `backend/test/offline.test.mjs` (12 assertions): **12 passed, 0 failed**.
+- Originally caught `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` caused by TypeScript parameter properties in `BillingVerificationError`; removed the unsupported constructor syntax in GitHub commit `6392f90546457698f797898c34a4e659ca3e3c27`; reran the suite successfully.
+- Independent registration validation checks: five `node:test` cases (valid email/password, malformed email, short/long password and confirmation mismatch): **5 passed**; standalone TypeScript compilation also passed.
+- Combined **latest milestone** offline runs: 17 passed / 0 failed. Earlier assertions may cover similar behavior; these are *not* 17 independent integration workflows.
+- The browser signup and recovery code is committed but not executed against actual Supabase/Auth SMTP. Full project npm/Flutter builds remain unexecuted due offline runner restrictions.
+- Since the validation workflow exists only in PR #2, the `workflow_dispatch` job cannot currently be relied on as available from the repository default branch. Do not change main or enable automatic workflow triggers just to simulate an executed build.
