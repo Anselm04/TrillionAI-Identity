@@ -1,6 +1,7 @@
 import type { Request, RequestHandler } from "express";
 import { admin, publicAuthClient } from "./supabase.js";
 import { checkAccess, type Role } from "./authz.js";
+import { latestVerifiedTotpTimestamp } from "./mfa.js";
 
 export type Principal = { uid: string; email: string; role: Role; token: string; aal: string; totpFactorId?: string };
 export type AuthRequest = Request & { principal?: Principal };
@@ -24,14 +25,13 @@ export function guard(required: Role = "customer", allowMfaPending = false): Req
       if (mfaError || !mfaData) { res.status(503).json({ error: "mfa_unavailable" }); return; }
       const factor = user.factors?.find(f => f.factor_type === "totp" && f.status === "verified");
       const aal = mfaData.currentLevel ?? "aal1";
-      const methods = mfaData.currentAuthenticationMethods ?? [];
-      const latestTotp = methods.filter(m => m.method === "totp").reduce((latest, m) => Math.max(latest, m.timestamp ?? 0), 0);
+      const latestTotp = latestVerifiedTotpTimestamp(mfaData.currentAuthenticationMethods);
       // The AAL comes from validated Supabase Auth (not an unverified JWT decode).
       const needsMfa = Boolean(factor) && aal !== "aal2";
       if (!allowMfaPending || required !== "customer") {
         const decision = checkAccess({ role, required, emailConfirmed: true, aal, mfaEnrolled: Boolean(factor),
           // Use the time of the trusted Supabase MFA event, not the JWT issue time.
-          recentMfaAt: latestTotp || undefined });
+          recentMfaAt: latestTotp });
         if (!decision.ok) { res.status(decision.status).json({ error: decision.code }); return; }
       } else if (needsMfa) {
         // allow only MFA completion and logout while still at AAL1.
