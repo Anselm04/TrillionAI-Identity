@@ -1,7 +1,8 @@
 import type { AppHooks, CancellationResult, Subscription } from "./hooks.js";
 
 export class BillingVerificationError extends Error {
-  constructor(public readonly code: string) { super(code); this.name = "BillingVerificationError"; }
+  readonly code: string;
+  constructor(code: string) { super(code); this.code = code; this.name = "BillingVerificationError"; }
 }
 
 /** Never treat a provider acknowledgement alone as evidence billing stopped. */
