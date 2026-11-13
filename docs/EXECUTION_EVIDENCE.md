@@ -48,3 +48,9 @@ Do not merge PR #2, deploy it, enable paid services or call it functional until 
 - Combined **latest milestone** offline runs: 17 passed / 0 failed. Earlier assertions may cover similar behavior; these are *not* 17 independent integration workflows.
 - The browser signup and recovery code is committed but not executed against actual Supabase/Auth SMTP. Full project npm/Flutter builds remain unexecuted due offline runner restrictions.
 - Since the validation workflow exists only in PR #2, the `workflow_dispatch` job cannot currently be relied on as available from the repository default branch. Do not change main or enable automatic workflow triggers just to simulate an executed build.
+
+## Web dependency-free test verification
+- Checked `web/src/validation.ts` against Git blob `1068ce525c26c1ae942bb36d238e4b5bb2c00ed7`, and `web/test/validation.test.mjs` against `c67b55f498f0fb63e37f3fc7ffb434641a65d01d`; both local copies matched the committed Git objects exactly.
+- Executed `node --disable-warning=ExperimentalWarning --experimental-strip-types --test /tmp/identity-web/test/validation.test.mjs` on Node v22.16.0: **5 passed / 0 failed**.
+- Compiled `web/src/validation.ts` independently using global TypeScript: passed.
+- Do not conflate these checks with `npm run check` or `npm run build` of the complete React project, which remain unexecuted.
