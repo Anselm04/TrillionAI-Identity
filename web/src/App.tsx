@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { api } from "./api";
+import { validateRegistration } from "./validation";
 type Profile = { id:string; email:string; role:string; mfa_enabled:boolean };
 type Subscription = {id:string;plan:string;amountLabel:string;status:string;renewsAt:string|null;accessUntil:string|null;store:string;manageUrl?:string};
 function Field({label,type="text",value,onChange}:{label:string;type?:string;value:string;onChange:(value:string)=>void}) {
@@ -55,8 +56,8 @@ export default function App(){
   useEffect(()=>{if(session?.access_token && mode!=="recover"){void reload();}},[session?.access_token,mode]);
   async function submit(fn:()=>Promise<void>){setBusy(true);setMessage("");try{await fn();}catch(e){setMessage(e instanceof Error?e.message:"Request failed");}finally{setBusy(false);}}
   async function register(e:FormEvent){e.preventDefault();await submit(async()=>{
-    if(password!==confirm)throw Error("Passwords do not match");
-    if(password.length<12||password.length>128)throw Error("Password must be 12–128 characters");
+    const validationError=validateRegistration(email,password,confirm);
+    if(validationError)throw Error(validationError);
     const {error}=await supabase.auth.signUp({
       email:email.trim(),password,
       options:{emailRedirectTo:window.location.origin+"/verified"},

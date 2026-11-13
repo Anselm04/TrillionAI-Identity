@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test test/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.57.0",
