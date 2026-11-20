@@ -30,3 +30,6 @@ Appwrite Teams/Http/Memberships/XList.php blob 18b3698ebf7fbb67644ad42a1ba5b0103
 
 ## Tenant membership mutation
 Inspected Appwrite Memberships/Update.php (1c2d0998c4a2d2c0544027283e07eeb7d94b5932) and Delete.php (e9734dbe9430adaf3a40f54e6d2909e31939720f), BSD-3-Clause. Adapted tenant row lock, tenant-scoped actor/target authorization and last-active-owner rollback using an invoker RPC. Admin cannot manage owners or other admins; invitation acceptance is separate. SQL changes not applied or integration-tested. Account deletion cascade requires additional last-owner protection.
+
+## Session inventory implementation
+Inspected Appwrite reference Sessions/Delete.php blob 6f3f575c8cca6be1b1f27cc9ddc52df8203c46e6 and Sessions/XList.php blob 177d6f4b351666623aa3d4514189e94d1906285b, BSD-3-Clause. Adapted ownership-scoped listing and targeted removal, without copying PHP. Supabase Auth remains session authority. SQL installation source is not yet packaged as a CLI migration; provider cascade and immediate API revocation require qualification. No live database mutation or paid service used.
