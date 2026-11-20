@@ -24,3 +24,6 @@ Appwrite reference `src/Appwrite/Platform/Modules/Teams/Http/Teams/Create.php` (
 
 ## Identity data access — 21 November
 Inspected Appwrite Account/Get.php blob ebfce0fbf1fd8b7ad9ef5b57c573d88e14573707 and Account/Delete.php blob 5fd307a9585997330c4ee693c476c25cd2baebb0 (under src/Appwrite/Platform/Modules/Account/Http/, BSD-3-Clause reference). Adapted caller-scoped data retrieval and session cleanup ordering; no PHP copied. Supabase documentation https://supabase.com/docs/reference/javascript/auth-signout confirms refresh-token revocation and finite access-token expiry limitations. Native Identity export is now independent of optional external product hooks. Membership export refuses potentially truncated results until pagination is implemented. Deletion still requires actual billing and product cleanup hooks; these are not falsely reported as implemented. No live provider operations executed.
+
+## Native export pagination
+Appwrite Teams/Http/Memberships/XList.php blob 18b3698ebf7fbb67644ad42a1ba5b010362ec2b7 (BSD-3-Clause) inspected for mandatory tenant filters and cursor pagination. Adapted keyset pagination using unique organisation IDs within the caller's memberships; no PHP copied. Tests cover provider page caps, empty results, repeated cursors and failed reads. Export is not a transactional snapshot during concurrent membership changes.

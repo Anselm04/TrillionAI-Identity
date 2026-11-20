@@ -1,3 +1,4 @@
+import { collectPages } from "./pagination.js";
 import express, { type Request, type Response, type NextFunction } from "express";
 import helmet from "helmet";
 import cors from "cors";
@@ -186,13 +187,16 @@ app.get("/account/export", guard(), wrap(async (req, res) => {
   const p = principal(req);
   const { data, error } = await admin.from("identity_profiles").select("display_name").eq("user_id", p.uid).maybeSingle();
   if (error) { res.status(503).json({ error: "profile_export_unavailable" }); return; }
-  const memberships = await admin.from("identity_memberships")
-    .select("organisation_id,role,status,created_at").eq("user_id", p.uid)
-    .order("organisation_id");
-  if (memberships.error) { res.status(503).json({ error: "membership_export_unavailable" }); return; }
+  const ownMemberships = await collectPages(async after => {
+    let query = admin.from("identity_memberships")
+      .select("organisation_id,role,status,created_at").eq("user_id", p.uid)
+      .order("organisation_id").limit(200);
+    if (after !== null) query = query.gt("organisation_id", after);
+    const { data, error } = await query;
+    if (error || !data) throw new Error("membership_export_unavailable");
+    return data;
+  }, row => row.organisation_id as string);
   const appData = hooks.exportUserData ? await hooks.exportUserData(p.uid) : {};
-  const ownMemberships = memberships.data ?? [];
-  if (ownMemberships.length >= 1000) { res.status(503).json({ error: "export_requires_pagination" }); return; }
   await audit("data_exported", p.uid);
   res.setHeader("Content-Disposition", 'attachment; filename="my-data.json"');
   res.json({ account: { id: p.uid, email: p.email }, profile: data ?? {}, memberships: ownMemberships, app: appData });

@@ -10,7 +10,7 @@
     "test": "vitest run",
     "assign-owner": "tsx scripts/assign-owner.ts",
     "start": "node dist/server.js",
-    "test:offline": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test test/offline.test.mjs"
+    "test:offline": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test test/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.57.0",
