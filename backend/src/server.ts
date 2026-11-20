@@ -220,6 +220,15 @@ app.post("/account/billing/checkout",limiter,guard(),wrap(async(req,res)=>{
  const url=await provider.checkout(uid,customer,plan,input.data.attempt);
  res.status(201).json({url});
 }));
+// Entitlements are derived from the authenticated customer's current provider state,
+// never from a checkout redirect or a webhook receipt alone.
+app.get("/account/entitlements",guard(),wrap(async(req,res)=>{
+ if(!hooks.listSubscriptions){res.status(503).json({error:"billing_not_connected"});return;}
+ const subscriptions=await hooks.listSubscriptions(principal(req).uid);
+ const now=Date.now();
+ const grants=subscriptions.filter(s=>s.accessUntil!==null && Number.isFinite(Date.parse(s.accessUntil)) && Date.parse(s.accessUntil)>now && (s.status==="active"||s.status==="cancelled")).map(s=>({subscriptionId:s.id,plan:s.plan,accessUntil:s.accessUntil}));
+ res.json({active:grants.length>0,grants});
+}));
 app.get("/account/subscriptions", guard(), wrap(async (req, res) => {
   if (!hooks.listSubscriptions) { res.status(501).json({ error: "billing_not_connected" }); return; }
   res.json({ subscriptions: await hooks.listSubscriptions(principal(req).uid) });
