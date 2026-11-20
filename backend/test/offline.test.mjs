@@ -42,3 +42,22 @@ test("provider-confirmed cancellation accepted", async()=>{
   const hooks={listSubscriptions:async()=>[{...active,status:"cancelled"}],cancelSubscription:async()=>({cancelled:true,accessUntil:null})};
   assert.equal((await cancelDirectSubscriptionVerified(hooks,"user",active)).cancelled,true);
 });
+
+test("privileged identities require fresh MFA even on ordinary protected account endpoints",()=>{
+ for(const role of ["owner","admin"]){
+ const base={role,required:"customer",emailConfirmed:true,aal:"aal1",mfaEnrolled:false,now:1000};
+ assert.equal(checkAccess(base).ok,false);
+ assert.equal(checkAccess({...base,aal:"aal2",mfaEnrolled:true,recentMfaAt:999}).ok,true);
+ assert.equal(checkAccess({...base,aal:"aal2",mfaEnrolled:true,recentMfaAt:1,now:2000}).ok,false);
+ }
+});
+test("unknown role and assurance fail closed",()=>{
+ const base={role:"customer",required:"customer",emailConfirmed:true,aal:"aal1",mfaEnrolled:false};
+ assert.equal(checkAccess({...base,role:"unknown"}).ok,false);
+ assert.equal(checkAccess({...base,aal:undefined}).ok,false);
+ assert.equal(checkAccess({...base,aal:"aal3"}).ok,false);
+});
+test("privileged MFA rejects noninteger, infinite, and future timestamps",()=>{
+ const base={role:"owner",required:"owner",emailConfirmed:true,aal:"aal2",mfaEnrolled:true,now:1000};
+ for(const recentMfaAt of [NaN,Infinity,999.5,1001,-1,0]) assert.equal(checkAccess({...base,recentMfaAt}).ok,false);
+});
