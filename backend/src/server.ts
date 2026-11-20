@@ -1,3 +1,4 @@
+import { developerClientInput } from "./developer-client.js";
 import { createCheckoutProvider, parseCheckoutPlans } from "./stripe-checkout.js";
 import { initializeAccountLifecycle } from "./account-lifecycle.js";
 import { verifyStripeEvent, subscriptionEvent } from "./stripe-webhook.js";
@@ -471,6 +472,32 @@ app.delete("/v1/organisations/:id/invitations/:inviteId",limiter,guard(),wrap(as
   if(data!==true){res.status(404).json({error:"not_found"});return;}
   await audit("invitation_revoked",principal(req).uid);
   res.status(204).end();
+}));
+app.post("/v1/organisations/:id/clients",limiter,guard(),wrap(async(req,res)=>{
+ const org=z.string().uuid().safeParse(req.params.id);
+ const input=developerClientInput.safeParse(req.body);
+ if(!org.success||!input.success){res.status(400).json({error:"invalid_client_metadata"});return;}
+ const {data,error}=await admin.rpc("identity_register_client",{p_actor:principal(req).uid,p_org:org.data,p_name:input.data.name,p_type:input.data.client_type,p_redirects:input.data.redirect_uris});
+ if(error){res.status(503).json({error:"client_registration_unavailable"});return;}
+ if(typeof data!=="string"){res.status(404).json({error:"not_found"});return;}
+ res.status(201).json({id:data,...input.data});
+}));
+app.get("/v1/organisations/:id/clients",guard(),wrap(async(req,res)=>{
+ const org=z.string().uuid().safeParse(req.params.id);
+ const cursor=z.object({after:z.string().uuid().optional()}).strict().safeParse(req.query);
+ if(!org.success||!cursor.success){res.status(400).json({error:"invalid_query"});return;}
+ const {data,error}=await admin.rpc("identity_list_clients",{p_actor:principal(req).uid,p_org:org.data,p_after:cursor.data.after??null});
+ if(error){res.status(503).json({error:"clients_unavailable"});return;}
+ if(!data){res.status(404).json({error:"not_found"});return;}
+ res.json(data);
+}));
+app.delete("/v1/organisations/:id/clients/:clientId",limiter,guard(),wrap(async(req,res)=>{
+ const ids=z.object({id:z.string().uuid(),clientId:z.string().uuid()}).safeParse(req.params);
+ if(!ids.success){res.status(400).json({error:"invalid_client"});return;}
+ const {data,error}=await admin.rpc("identity_revoke_client",{p_actor:principal(req).uid,p_org:ids.data.id,p_client:ids.data.clientId});
+ if(error){res.status(503).json({error:"client_revocation_unavailable"});return;}
+ if(data!==true){res.status(404).json({error:"not_found"});return;}
+ res.status(204).end();
 }));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
