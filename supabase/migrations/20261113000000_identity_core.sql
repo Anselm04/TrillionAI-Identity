@@ -27,3 +27,7 @@ revoke all on public.identity_profiles from anon, authenticated;
 
 -- No SECURITY DEFINER triggers exposed in public. Profiles are created
 -- lazily when first updated, preventing hidden signup-trigger failures.
+
+grant select, insert, update, delete on public.identity_profiles, public.identity_global_roles to service_role;
+grant select, insert on public.identity_audit_log to service_role;
+grant usage on sequence public.identity_audit_log_id_seq to service_role;

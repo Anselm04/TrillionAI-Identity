@@ -240,6 +240,15 @@ app.delete("/account", limiter, guard(), wrap(async (req, res) => {
   await audit("account_deleted");
   res.json({ deleted: true });
 }));
+app.post("/v1/organisations", limiter, guard(), wrap(async (req, res) => {
+  const parsed = z.object({ name: z.string().trim().min(1).max(200) }).strict().safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "invalid_organisation_name" }); return; }
+  const { data, error } = await admin.rpc("identity_create_organisation", {
+    p_user_id: principal(req).uid, p_name: parsed.data.name,
+  });
+  if (error || typeof data !== "string") { res.status(503).json({ error: "organisation_not_created" }); return; }
+  res.status(201).json({ organisation: { id: data, name: parsed.data.name }, role: "owner" });
+}));
 app.get("/v1/organisations", guard(), wrap(async (req, res) => {
   const p = principal(req);
   const { data: memberships, error } = await admin.from("identity_memberships")
