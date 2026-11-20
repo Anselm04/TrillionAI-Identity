@@ -75,7 +75,7 @@ app.post("/auth/login", limiter, wrap(async (req, res) => {
   if (!v.success) { res.status(401).json({ error: "Invalid credentials" }); return; }
   const { data, error } = await publicAuthClient().auth.signInWithPassword(v.data);
   if (error?.status === 429) { res.status(429).json({ error: "too_many_requests" }); return; }
-  if (error && error.status >= 500) { res.status(503).json({ error: "authentication_unavailable" }); return; }
+  if (error && (error.status ?? 0) >= 500) { res.status(503).json({ error: "authentication_unavailable" }); return; }
   if (error || !data.session) {
     res.status(error?.code === "email_not_confirmed" ? 403 : 401).json({
       error: error?.code === "email_not_confirmed" ? "email_not_confirmed" : "invalid_credentials",
@@ -93,7 +93,7 @@ app.post("/auth/refresh", limiter, wrap(async (req, res) => {
   if (!v.success) { res.status(401).json({ error: "session_expired" }); return; }
   const { data, error } = await publicAuthClient().auth.refreshSession({ refresh_token: v.data.refresh_token });
   if (error?.status && error.status >= 500) { res.status(503).json({ error: "authentication_unavailable" }); return; }
-  if (error || !data.session) { res.status(401).json({ error: "session_expired" }); return; }
+  if (error || !data.session || !data.user?.email_confirmed_at) { res.status(401).json({ error: "session_expired" }); return; }
   res.json({ access_token: data.session.access_token, refresh_token: data.session.refresh_token,
     expires_at: data.session.expires_at });
 }));
@@ -106,7 +106,7 @@ app.post("/auth/logout", guard("customer", true), wrap(async (req, res) => {
   });
   if (!response.ok) { res.status(502).json({ error: "logout_not_confirmed" }); return; }
   await audit("logout", principal(req).uid);
-  res.json({ message: "Signed out" });
+  res.json({ message: parsed.data.scope === "others" ? "Other sessions signed out" : "Signed out", scope: parsed.data.scope });
 }));
 app.post("/auth/change-password", guard(), limiter, wrap(async (req, res) => {
   const valid = z.object({ current_password: z.string().min(1).max(128),

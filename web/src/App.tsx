@@ -3,6 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { api } from "./api";
 import { validateRegistration } from "./validation";
+import { safeNextPath } from "./vendor/supabase/safe-next-path";
 type Profile = { id:string; email:string; role:string; mfa_enabled:boolean };
 type Subscription = {id:string;plan:string;amountLabel:string;status:string;renewsAt:string|null;accessUntil:string|null;store:string;manageUrl?:string};
 function Field({label,type="text",value,onChange}:{label:string;type?:string;value:string;onChange:(value:string)=>void}) {
@@ -44,7 +45,8 @@ export default function App(){
       supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
       supabase.auth.mfa.listFactors()
     ]);
-    if(!me.ok){setMessage(me.error);return;}
+    if(!me.ok){setProfile(null);setMessage(me.error);return;}
+    if(aal.error || factors.error){setProfile(null);setMessage("Account security check unavailable. Please retry.");return;}
     const factorId = factors.data?.totp.find(f=>f.status==="verified")?.id ?? null;
     setFactor(factorId);
     const pending=Boolean(factorId && aal.data?.currentLevel!=="aal2");
@@ -52,6 +54,11 @@ export default function App(){
     if(pending){setProfile(null);return;}
     if("mfa_required" in me.data){setMfaPending(true);return;}
     setProfile(me.data);
+    const next = new URLSearchParams(window.location.search).get("next");
+    if(next && window.location.pathname === "/") {
+      const destination = safeNextPath(next, "/", window.location.origin);
+      if(destination !== "/" && destination !== window.location.pathname + window.location.search + window.location.hash) window.location.replace(destination);
+    }
   }
   useEffect(()=>{if(session?.access_token && mode!=="recover"){void reload();}},[session?.access_token,mode]);
   async function submit(fn:()=>Promise<void>){setBusy(true);setMessage("");try{await fn();}catch(e){setMessage(e instanceof Error?e.message:"Request failed");}finally{setBusy(false);}}
@@ -111,11 +118,12 @@ export default function App(){
     setCode("");setEnrolling(null);await reload();
   });}
   async function updatePassword(e:FormEvent){e.preventDefault();await submit(async()=>{
-    if(password.length<12||password!==confirm)throw Error("New passwords must match and be at least 12 characters");
+    if(password.length<12||password.length>128||password!==confirm)throw Error("New passwords must match and be at least 12 characters");
     if(mode==="recover"){
       const {error}=await supabase.auth.updateUser({password});
       if(error)throw Error(error.message);
-      await supabase.auth.signOut({scope:"global"});
+      const {error: signOutError}=await supabase.auth.signOut({scope:"global"});
+      if(signOutError)throw Error("Password updated, but session revocation could not be confirmed. Sign out and retry.");
     } else {
       if(!currentPassword)throw Error("Enter your current password");
       const r=await api<{updated:boolean}>("/auth/change-password","POST",{

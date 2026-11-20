@@ -55,6 +55,11 @@ class _IdentityScreenState extends State<IdentityScreen> {
     super.initState();
     changes = supabase.auth.onAuthStateChange.listen((state) {
       if (state.event == AuthChangeEvent.passwordRecovery) page = 'reset';
+      if (state.event == AuthChangeEvent.signedOut) {
+        page = 'signin'; needsMfa = false; factorId = null; accountRole = null;
+        enrollId = null; qr = null; secret = null; subscriptions = null;
+        for (final controller in [password,currentPassword,confirm,code,displayName,newEmail,deletePassword,deleteConfirmation]) { controller.clear(); }
+      }
       if (mounted) setState(() {});
       if (state.event == AuthChangeEvent.signedIn ||
           state.event == AuthChangeEvent.tokenRefreshed) {
@@ -132,7 +137,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   });
 
   Future<void> savePassword() => perform(() async {
-    if (password.text.length < 12 || password.text != confirm.text) {
+    if (password.text.length < 12 || password.text.length > 128 || password.text != confirm.text) {
       throw StateError('Passwords must match and contain 12 or more characters.');
     }
     if (page == 'reset') {
@@ -383,6 +388,11 @@ class _IdentityScreenState extends State<IdentityScreen> {
               child: const Text('Save password')),
           ])
           else if (needsMfa) mfaForm()
+          else if (accountRole == null) Column(children: [
+            const Text('Checking verified account access.'),
+            TextButton(onPressed: busy ? null : checkMfa, child: const Text('Retry')),
+            TextButton(onPressed: busy ? null : () => perform(() async { await supabase.auth.signOut(scope: SignOutScope.local); }), child: const Text('Sign out')),
+          ])
           else accountForm(),
           if (busy) const LinearProgressIndicator(),
           if (message.isNotEmpty) Padding(
