@@ -24,7 +24,8 @@ export function guard(required: Role = "customer", allowMfaPending = false): Req
       const { data: mfaData, error: mfaError } = await authClient.auth.mfa.getAuthenticatorAssuranceLevel(token);
       if (mfaError || !mfaData) { res.status(503).json({ error: "mfa_unavailable" }); return; }
       const factor = user.factors?.find(f => f.factor_type === "totp" && f.status === "verified");
-      const aal = mfaData.currentLevel ?? "aal1";
+      const aal = mfaData.currentLevel;
+      if (aal !== "aal1" && aal !== "aal2") { res.status(401).json({ error: "invalid_assurance" }); return; }
       const latestTotp = latestVerifiedTotpTimestamp(mfaData.currentAuthenticationMethods);
       // The AAL comes from validated Supabase Auth (not an unverified JWT decode).
       const needsMfa = Boolean(factor) && aal !== "aal2";

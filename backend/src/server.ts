@@ -81,6 +81,9 @@ app.post("/auth/login", limiter, wrap(async (req, res) => {
       error: error?.code === "email_not_confirmed" ? "email_not_confirmed" : "invalid_credentials",
     }); return;
   }
+  if (!data.user?.email_confirmed_at) {
+    res.status(403).json({ error: "email_not_confirmed" }); return;
+  }
   await audit("login", data.user.id);
   res.json({ access_token: data.session.access_token, refresh_token: data.session.refresh_token,
     expires_at: data.session.expires_at });
@@ -95,7 +98,9 @@ app.post("/auth/refresh", limiter, wrap(async (req, res) => {
     expires_at: data.session.expires_at });
 }));
 app.post("/auth/logout", guard("customer", true), wrap(async (req, res) => {
-  const response = await fetch(`${config.SUPABASE_URL}/auth/v1/logout?scope=global`, {
+  const parsed = z.object({ scope: z.enum(["local", "global", "others"]).default("local") }).safeParse(req.body ?? {});
+  if (!parsed.success) { res.status(400).json({ error: "invalid_logout_scope" }); return; }
+  const response = await fetch(`${config.SUPABASE_URL}/auth/v1/logout?scope=${parsed.data.scope}`, {
     method: "POST", headers: { apikey: config.SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${principal(req).token}` },
     signal: AbortSignal.timeout(8000),
   });
@@ -180,7 +185,8 @@ app.post("/account/subscriptions/:id/cancel", limiter, guard(), wrap(async (req,
 app.get("/account/export", guard(), wrap(async (req, res) => {
   if (!hooks.exportUserData) { res.status(501).json({ error: "data_export_not_connected" }); return; }
   const p = principal(req);
-  const { data } = await admin.from("identity_profiles").select("display_name").eq("user_id", p.uid).maybeSingle();
+  const { data, error } = await admin.from("identity_profiles").select("display_name").eq("user_id", p.uid).maybeSingle();
+  if (error) { res.status(503).json({ error: "profile_export_unavailable" }); return; }
   const appData = await hooks.exportUserData(p.uid);
   await audit("data_exported", p.uid);
   res.setHeader("Content-Disposition", 'attachment; filename="my-data.json"');

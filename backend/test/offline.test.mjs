@@ -61,3 +61,7 @@ test("privileged MFA rejects noninteger, infinite, and future timestamps",()=>{
  const base={role:"owner",required:"owner",emailConfirmed:true,aal:"aal2",mfaEnrolled:true,now:1000};
  for(const recentMfaAt of [NaN,Infinity,999.5,1001,-1,0]) assert.equal(checkAccess({...base,recentMfaAt}).ok,false);
 });
+
+test("unknown and prototype organisation roles deny instead of throwing",()=>{
+ for(const role of ["invalid","constructor","__proto__","toString"]) assert.equal(canAccessOrganisation(role,"organisation:read","active"),false);
+});

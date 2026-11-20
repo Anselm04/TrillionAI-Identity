@@ -11,5 +11,5 @@ const permissions: Readonly<Record<OrganisationRole, readonly OrganisationPermis
 /** An account's global owner/admin role does not imply membership in every tenant. */
 export function canAccessOrganisation(role: OrganisationRole | null,
   permission: OrganisationPermission, status: string | null): boolean {
-  return status === "active" && role !== null && permissions[role].includes(permission);
+  return status === "active" && role !== null && Object.prototype.hasOwnProperty.call(permissions, role) && permissions[role].includes(permission);
 }

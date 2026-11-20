@@ -32,7 +32,7 @@ export default function App(){
       if(!active)return;
       setSession(current);
       if(event==="PASSWORD_RECOVERY")setMode("recover");
-      if(event==="SIGNED_OUT"){setProfile(null);setFactor(null);setMfaPending(false);}
+      if(event==="SIGNED_OUT"){setProfile(null);setFactor(null);setMfaPending(false);setSubscriptions(null);setEnrolling(null);setName("");setCode("");setPassword("");setCurrentPassword("");setConfirm("");setMode("normal");}
     });
     void supabase.auth.getSession().then(({data})=>{if(active){setSession(data.session);setReady(true);}});
     return ()=>{active=false;subscription.unsubscribe();};
@@ -186,6 +186,7 @@ export default function App(){
     mfaPending?<section><h2>Two-step verification required</h2><form onSubmit={verifyMfa}>
       <Field label="Six-digit authenticator code" value={code} onChange={setCode}/>
       <button disabled={busy}>Verify</button></form><button className="secondary" onClick={signOut}>Sign out</button></section>:
+    !profile?<section><p role="status">Checking verified account access.</p><button onClick={()=>void reload()}>Retry</button><button className="secondary" onClick={signOut}>Sign out</button></section>:
     <><p>Signed in as {session.user.email}</p><button className="secondary" onClick={signOut}>Sign out</button>
       <section><h2>Account security</h2><p>Role: {profile?.role ?? "customer"}</p>
         {!factor && !enrolling && <button onClick={setupMfa}>Enable authenticator MFA</button>}
