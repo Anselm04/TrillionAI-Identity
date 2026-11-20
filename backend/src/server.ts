@@ -49,8 +49,9 @@ app.use((_, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); 
 const limiter = rateLimit({ windowMs: 15 * 60_000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false });
 const email = z.string().trim().email().max(254).transform(v => v.toLowerCase());
 const password = z.string().min(12).max(128);
-const wrap = (fn: (req: Request, res: Response) => Promise<unknown>) =>
-  (req: Request, res: Response, next: NextFunction) => { Promise.resolve(fn(req, res)).catch(next); };
+function wrap(fn: (req: Request, res: Response) => Promise<unknown>) {
+  return (req: Request, res: Response, next: NextFunction) => { Promise.resolve(fn(req, res)).catch(next); };
+}
 const principal = (req: Request) => (req as AuthRequest).principal!;
 const neutral = { message: "If this address is eligible, an email has been requested." };
 async function audit(action: string, uid?: string) {
