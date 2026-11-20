@@ -1,4 +1,4 @@
-import { authenticatedSessionId } from "./session-id.js";
+import { authenticatedIdentityTokenAudience, authenticatedSessionId } from "./session-id.js";
 import type { Request, RequestHandler } from "express";
 import { admin, publicAuthClient } from "./supabase.js";
 import { checkAccess, type Role } from "./authz.js";
@@ -16,6 +16,7 @@ export function guard(required: Role = "customer", allowMfaPending = false): Req
       const { data: userData, error: authError } = await authClient.auth.getUser(token);
       if (authError || !userData.user) { res.status(401).json({ error: "unauthenticated" }); return; }
       const user = userData.user;
+      if (!authenticatedIdentityTokenAudience(token, user.id)) { res.status(403).json({ error: "oauth_client_token_forbidden" }); return; }
       const sessionId = authenticatedSessionId(token,user.id);
       if (!sessionId) { res.status(401).json({error:"invalid_session"}); return; }
       const {data: active,error: sessionError} = await admin.rpc("identity_session_active",{p_user:user.id,p_session:sessionId});
