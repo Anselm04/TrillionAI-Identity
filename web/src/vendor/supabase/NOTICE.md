@@ -1,1 +1,3 @@
 Source: Supabase upstream project (https://github.com/supabase/supabase), retrieved from Anselm04/Supabase-Source-Code-Reference, tree ef2d9254ebdc7946a9148aecca93e6fec0a09b61, path apps/ui-library/registry/default/blocks/safe-next-path/lib/safe-next-path.ts, blob f727da65643b969deb7cac96c86c5c0fe12e2aa4. Imported unchanged. Repository-level Apache-2.0 license preserved alongside source. Supabase trademarks remain their owners' property.
+
+SignUpForm: Supabase reference blob e5dd69083bae55a60fbfb7230f492c68fd2e8709, retrieved from Anselm04/Supabase-Source-Code-Reference. Modified for native markup, validation, email callback, shared client and session handling. Apache-2.0; see adjacent LICENSE.
