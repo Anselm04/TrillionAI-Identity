@@ -1,3 +1,4 @@
+import { TeamAdministration } from "./TeamAdministration";
 import { OrganisationInvitations } from "./OrganisationInvitations";
 import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
@@ -185,6 +186,7 @@ export default function App(){
         <button disabled={busy} onClick={()=>{if(window.confirm("Sign out every device, including this one?"))void signOut("global");}}>Sign out all devices</button>
         <p className="muted">Revoked devices cannot refresh their sessions. Existing access tokens may remain valid until expiry.</p>
       </section>
+      <TeamAdministration key={"team:"+session.user.id}/>
       <OrganisationInvitations key={session.user.id}/>
       <section><h2>Account security</h2><p>Role: {profile?.role ?? "customer"}</p>
         {!factor && !enrolling && <button onClick={setupMfa}>Enable authenticator MFA</button>}
