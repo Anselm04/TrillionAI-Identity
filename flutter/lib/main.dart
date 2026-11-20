@@ -49,6 +49,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   String? qr;
   String? secret;
   List<dynamic>? subscriptions;
+  List<dynamic>? devices;
 
   @override
   void initState() {
@@ -57,7 +58,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
       if (state.event == AuthChangeEvent.passwordRecovery) page = 'reset';
       if (state.event == AuthChangeEvent.signedOut) {
         page = 'signin'; needsMfa = false; factorId = null; accountRole = null;
-        enrollId = null; qr = null; secret = null; subscriptions = null;
+        enrollId = null; qr = null; secret = null; subscriptions = null; devices = null;
         for (final controller in [password,currentPassword,confirm,code,displayName,newEmail,deletePassword,deleteConfirmation]) { controller.clear(); }
       }
       if (mounted) setState(() {});
@@ -301,6 +302,26 @@ class _IdentityScreenState extends State<IdentityScreen> {
     }), child: const Text('Sign out')),
   ]);
 
+  Future<void> loadDevices() => perform(() async {
+    final result = await api.request('GET', '/account/sessions');
+    if (mounted) setState(() => devices = result['sessions'] as List<dynamic>);
+  });
+
+  Future<void> revokeDevice(String id) => perform(() async {
+    final confirmed = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(title: const Text('Revoke this session?'), actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Revoke')),
+      ]));
+    if (confirmed != true || !mounted) return;
+    final result = await api.request('DELETE', '/account/sessions/${Uri.encodeComponent(id)}');
+    if (result['revoked'] != true) throw StateError('Revocation not confirmed.');
+    if (mounted) setState(() {
+      devices?.removeWhere((row) => row is Map && row['id'] == id);
+      message = 'Session revoked.';
+    });
+  });
+
   Future<void> revokeSessions(SignOutScope scope) => perform(() async {
     final approved = await showDialog<bool>(context: context, builder: (ctx) =>
       AlertDialog(title: const Text('Sign out devices?'),
@@ -314,7 +335,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
     if (approved != true || !mounted) return;
     await supabase.auth.signOut(scope: scope);
     if (scope == SignOutScope.others && mounted) {
-      setState(() => message = 'Other sessions signed out.');
+      setState(() { devices = null; message = 'Other sessions signed out.'; });
     }
   });
 
@@ -322,11 +343,21 @@ class _IdentityScreenState extends State<IdentityScreen> {
     Text(supabase.auth.currentUser?.email ?? 'Account'),
     const Divider(),
     const Text('Session management'),
+    OutlinedButton(onPressed: busy ? null : loadDevices, child: const Text('View signed-in sessions')),
+    if (devices != null)
+      for (final raw in devices!)
+        if (raw is Map<String, dynamic>)
+          ListTile(
+            title: Text(raw['is_current'] == true ? 'Current session' : 'Other session'),
+            subtitle: Text(raw['user_agent']?.toString() ?? 'Device details unavailable'),
+            trailing: raw['is_current'] == true ? null : TextButton(
+              onPressed: busy ? null : () => revokeDevice(raw['id'].toString()), child: const Text('Revoke')),
+          ),
     OutlinedButton(onPressed: busy ? null : () => revokeSessions(SignOutScope.others),
       child: const Text('Sign out other devices')),
     OutlinedButton(onPressed: busy ? null : () => revokeSessions(SignOutScope.global),
       child: const Text('Sign out all devices')),
-    const Text('Revoked sessions cannot refresh. Existing access tokens may remain valid until expiry.'),
+    const Text('Revoked sessions are rejected by the Identity API. Other services must enforce their own session checks.'),
     const Divider(),
     if (factorId == null && enrollId == null)
       FilledButton(onPressed: busy ? null : startMfa,
