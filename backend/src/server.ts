@@ -267,17 +267,30 @@ app.post("/v1/organisations", limiter, guard(), wrap(async (req, res) => {
 }));
 app.get("/v1/organisations", guard(), wrap(async (req, res) => {
   const p = principal(req);
-  const { data: memberships, error } = await admin.from("identity_memberships")
-    .select("organisation_id,role,status").eq("user_id", p.uid).eq("status", "active");
-  if (error) { res.status(503).json({ error: "tenant_memberships_unavailable" }); return; }
-  const active = (memberships ?? []).filter(m => m.status === "active");
-  if (!active.length) { res.json({ organisations: [] }); return; }
-  const ids = active.map(m => m.organisation_id);
-  const { data: orgs, error: orgError } = await admin.from("identity_organisations")
-    .select("id,name").in("id",ids);
-  if (orgError) { res.status(503).json({ error: "organisations_unavailable" }); return; }
-  const byId = new Map(active.map(m => [m.organisation_id,m.role]));
-  res.json({ organisations: (orgs ?? []).map(o => ({ id:o.id,name:o.name,role:byId.get(o.id) })) });
+  // Cursor through all memberships; avoid PostgREST's implicit 1,000-row cap
+  // and unbounded URL lengths from a single large IN filter.
+  const memberships = await collectPages(async after => {
+    let query = admin.from("identity_memberships")
+      .select("organisation_id,role,status").eq("user_id", p.uid)
+      .eq("status", "active").order("organisation_id").limit(200);
+    if (after !== null) query = query.gt("organisation_id", after);
+    const { data, error } = await query;
+    if (error || !data) throw new Error("tenant_memberships_unavailable");
+    return data;
+  }, row => row.organisation_id as string);
+  const organisations: { id: string; name: string; role: string }[] = [];
+  for (let offset = 0; offset < memberships.length; offset += 100) {
+    const batch = memberships.slice(offset, offset + 100);
+    const { data, error } = await admin.from("identity_organisations")
+      .select("id,name").in("id", batch.map(m => m.organisation_id));
+    if (error || !data) throw new Error("organisations_unavailable");
+    const roles = new Map(batch.map(m => [m.organisation_id, m.role]));
+    for (const org of data) {
+      const role = roles.get(org.id);
+      if (role) organisations.push({ id: org.id, name: org.name, role });
+    }
+  }
+  res.json({ organisations });
 }));
 app.get("/v1/organisations/:id", guard(), wrap(async (req, res) => {
   if (!z.string().uuid().safeParse(req.params.id).success) {
