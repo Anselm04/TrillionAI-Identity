@@ -150,6 +150,33 @@ app.get("/me", guard("customer", true), (req, res) => {
   }
   res.json({ id: p.uid, email: p.email, role: p.role, mfa_enabled: Boolean(p.totpFactorId) });
 });
+// Only extract session_id after guard has authenticated this exact bearer token.
+function verifiedSessionId(req: Request): string | null {
+  try {
+    const claims = JSON.parse(Buffer.from(principal(req).token.split(".")[1] ?? "", "base64url").toString("utf8"));
+    const id = z.string().uuid().safeParse(claims.session_id);
+    return id.success && claims.sub === principal(req).uid ? id.data : null;
+  } catch { return null; }
+}
+app.get("/account/sessions", guard(), wrap(async (req, res) => {
+  const current = verifiedSessionId(req);
+  if (!current) { res.status(401).json({error:"invalid_session"}); return; }
+  const {data,error} = await admin.rpc("identity_list_sessions", {p_user:principal(req).uid,p_current:current});
+  if (error || !Array.isArray(data)) { res.status(503).json({error:"sessions_unavailable"}); return; }
+  if (!data.some(row => row.current_session === true)) { res.status(401).json({error:"session_revoked"}); return; }
+  res.json({sessions:data});
+}));
+app.delete("/account/sessions/:id", limiter, guard(), wrap(async (req,res) => {
+  const current = verifiedSessionId(req);
+  const target = z.string().uuid().safeParse(req.params.id);
+  if (!current) { res.status(401).json({error:"invalid_session"}); return; }
+  if (!target.success || target.data === current) { res.status(400).json({error:"invalid_target_session"}); return; }
+  const {data,error} = await admin.rpc("identity_revoke_session", {p_user:principal(req).uid,p_current:current,p_target:target.data});
+  if (error) { res.status(503).json({error:"session_revocation_unavailable"}); return; }
+  if (data !== true) { res.status(404).json({error:"session_not_found"}); return; }
+  await audit("session_revoked", principal(req).uid);
+  res.status(204).end();
+}));
 app.get("/account/profile", guard(), wrap(async (req, res) => {
   const { data, error } = await admin.from("identity_profiles").select("display_name").eq("user_id", principal(req).uid).maybeSingle();
   if (error) { res.status(503).json({ error: "profile_unavailable" }); return; }
