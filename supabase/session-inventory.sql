@@ -28,4 +28,9 @@ end;
 $$;
 revoke all on function public.identity_revoke_session(uuid,uuid,uuid) from public, anon, authenticated;
 grant execute on function public.identity_revoke_session(uuid,uuid,uuid) to service_role;
+create or replace function public.identity_session_active(p_user uuid, p_session uuid)
+returns boolean language sql stable security definer set search_path = ''
+as $ select exists(select 1 from auth.sessions where id = p_session and user_id = p_user and (not_after is null or not_after > now())); $;
+revoke all on function public.identity_session_active(uuid,uuid) from public, anon, authenticated;
+grant execute on function public.identity_session_active(uuid,uuid) to service_role;
 commit;
