@@ -1,3 +1,7 @@
+import { createCheckoutProvider, parseCheckoutPlans } from "./stripe-checkout.js";
+import { initializeAccountLifecycle } from "./account-lifecycle.js";
+import { verifyStripeEvent, subscriptionEvent } from "./stripe-webhook.js";
+import { issueInvitation, invitationDigest } from "./invitations.js";
 import { collectPages } from "./pagination.js";
 import express, { type Request, type Response, type NextFunction } from "express";
 import helmet from "helmet";
@@ -8,6 +12,7 @@ import { config } from "./config.js";
 import { admin, publicAuthClient } from "./supabase.js";
 import { guard, type AuthRequest } from "./guards.js";
 import { hooks } from "./hooks.js";
+import { initializeStripeBilling } from "./stripe-bootstrap.js";
 import { cancelDirectSubscriptionVerified, BillingVerificationError } from "./billing.js";
 import { directBillingIsCancelled, storeSubscriptionsRequireAcknowledgement } from "./deletion.js";
 
@@ -21,13 +26,34 @@ app.use(cors({ origin: (origin, callback) => {
   if (!origin || allowedOrigins.has(origin)) callback(null, true);
   else callback(new Error("origin_not_allowed"));
 }, credentials: false }));
+app.post("/webhooks/stripe",express.raw({type:"application/json",limit:"256kb"}),wrap(async(req,res)=>{
+ const secret=process.env.STRIPE_WEBHOOK_SECRET?.trim();
+ if(!secret){res.status(503).json({error:"webhook_not_configured"});return;}
+ let event;
+ try {
+  if(!Buffer.isBuffer(req.body))throw Error("invalid_body");
+  event=verifyStripeEvent(req.body,req.header("stripe-signature")??"",secret);
+ } catch {res.status(400).json({error:"invalid_webhook"});return;}
+ const mode=process.env.STRIPE_EVENT_MODE;
+ if(!["test","live"].includes(mode??"") || event.livemode!==(mode==="live")){res.status(400).json({error:"webhook_mode_mismatch"});return;}
+ let record;
+ try {record=subscriptionEvent(event);} catch {res.status(400).json({error:"invalid_event"});return;}
+ if(!record){res.json({received:true});return;}
+ const {error}=await admin.from("identity_stripe_events").insert({
+  event_id:record.eventId,customer_id:record.customerId,subscription_id:record.subscriptionId,
+  event_created:record.eventCreated,status:record.status,live_mode:record.liveMode
+ });
+ if(error&&error.code!=="23505"){res.status(503).json({error:"webhook_storage_unavailable"});return;}
+ res.json({received:true});
+}));
 app.use(express.json({ limit: "16kb" }));
 app.use((_, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
 const limiter = rateLimit({ windowMs: 15 * 60_000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false });
 const email = z.string().trim().email().max(254).transform(v => v.toLowerCase());
 const password = z.string().min(12).max(128);
-const wrap = (fn: (req: Request, res: Response) => Promise<unknown>) =>
-  (req: Request, res: Response, next: NextFunction) => { Promise.resolve(fn(req, res)).catch(next); };
+function wrap(fn: (req: Request, res: Response) => Promise<unknown>) {
+  return (req: Request, res: Response, next: NextFunction) => { Promise.resolve(fn(req, res)).catch(next); };
+}
 const principal = (req: Request) => (req as AuthRequest).principal!;
 const neutral = { message: "If this address is eligible, an email has been requested." };
 async function audit(action: string, uid?: string) {
@@ -162,6 +188,55 @@ app.patch("/account/profile", limiter, guard(), wrap(async (req, res) => {
   if (error) { res.status(503).json({ error: "profile_not_saved" }); return; }
   res.json({ message: "Profile saved" });
 }));
+app.get("/account/billing/plans",guard(),wrap(async(_req,res)=>{
+ const plans=parseCheckoutPlans(process.env.STRIPE_CHECKOUT_PLANS);
+ res.json({plans:process.env.STRIPE_SECRET_KEY?plans.map(p=>({id:p.id})):[]});
+}));
+app.post("/account/billing/checkout",limiter,guard(),wrap(async(req,res)=>{
+ const input=z.object({plan:z.string().max(64),attempt:z.string().uuid()}).strict().safeParse(req.body);
+ if(!input.success){res.status(400).json({error:"invalid_checkout"});return;}
+ const secret=process.env.STRIPE_SECRET_KEY;
+ if(!secret||!hooks.listSubscriptions){res.status(503).json({error:"billing_not_connected"});return;}
+ const plan=parseCheckoutPlans(process.env.STRIPE_CHECKOUT_PLANS).find(p=>p.id===input.data.plan);
+ if(!plan){res.status(404).json({error:"plan_not_found"});return;}
+ const uid=principal(req).uid;
+ const provider=createCheckoutProvider(secret,config.APP_URL);
+ const {data:stored,error:readError}=await admin.from("identity_stripe_customers").select("stripe_customer_id").eq("user_id",uid).maybeSingle();
+ if(readError){res.status(503).json({error:"customer_lookup_unavailable"});return;}
+ let customer=stored?.stripe_customer_id;
+ if(!customer){
+  const created=await provider.createCustomer(uid);
+  const {error:writeError}=await admin.from("identity_stripe_customers").insert({user_id:uid,stripe_customer_id:created});
+  if(writeError&&writeError.code!=="23505"){res.status(503).json({error:"customer_mapping_unavailable"});return;}
+  const {data:confirmed,error:confirmError}=await admin.from("identity_stripe_customers").select("stripe_customer_id").eq("user_id",uid).single();
+  if(confirmError||!confirmed?.stripe_customer_id){res.status(503).json({error:"customer_mapping_unconfirmed"});return;}
+  customer=confirmed.stripe_customer_id;
+ }
+ if(typeof customer!=="string"){res.status(503).json({error:"customer_mapping_unconfirmed"});return;}
+ const subscriptions=await hooks.listSubscriptions(uid);
+ if(subscriptions.some(s=>s.status!=="cancelled"||Boolean(s.accessUntil&&Date.parse(s.accessUntil)>Date.now()))){
+  res.status(409).json({error:"existing_subscription"});return;
+ }
+ const url=await provider.checkout(uid,customer,plan,input.data.attempt);
+ res.status(201).json({url});
+}));
+// Entitlements are derived from the authenticated customer's current provider state,
+// never from a checkout redirect or a webhook receipt alone.
+app.get("/account/deletion-readiness",guard(),wrap(async(req,res)=>{
+ const p=principal(req);
+ if(p.role!=="customer"){res.status(403).json({error:"privileged_account"});return;}
+ const {data,error}=await admin.rpc("identity_deletion_conflicts",{p_user:p.uid});
+ if(error||!Array.isArray(data)){res.status(503).json({error:"ownership_check_unavailable"});return;}
+ const subscriptions=hooks.listSubscriptions?await hooks.listSubscriptions(p.uid):null;
+ res.json({ownershipConflicts:data,billingConnected:subscriptions!==null,storeAcknowledgementRequired:subscriptions===null?null:storeSubscriptionsRequireAcknowledgement(subscriptions),canRequestDeletion:data.length===0&&subscriptions!==null&&Boolean(hooks.deleteUserData&&hooks.cancelSubscription)});
+}));
+app.get("/account/entitlements",guard(),wrap(async(req,res)=>{
+ if(!hooks.listSubscriptions){res.status(503).json({error:"billing_not_connected"});return;}
+ const subscriptions=await hooks.listSubscriptions(principal(req).uid);
+ const now=Date.now();
+ const grants=subscriptions.filter(s=>s.accessUntil!==null && Number.isFinite(Date.parse(s.accessUntil)) && Date.parse(s.accessUntil)>now && (s.status==="active"||s.status==="cancelled")).map(s=>({subscriptionId:s.id,plan:s.plan,accessUntil:s.accessUntil}));
+ res.json({active:grants.length>0,grants});
+}));
 app.get("/account/subscriptions", guard(), wrap(async (req, res) => {
   if (!hooks.listSubscriptions) { res.status(501).json({ error: "billing_not_connected" }); return; }
   res.json({ subscriptions: await hooks.listSubscriptions(principal(req).uid) });
@@ -222,6 +297,9 @@ app.delete("/account", limiter, guard(), wrap(async (req, res) => {
     signal: AbortSignal.timeout(8000),
   });
   if (!revoke.ok) { res.status(502).json({ error: "reauthentication_cleanup_failed" }); return; }
+  const {data: conflicts,error: conflictError}=await admin.rpc("identity_deletion_conflicts",{p_user:p.uid});
+  if(conflictError || !Array.isArray(conflicts)){res.status(503).json({error:"ownership_check_unavailable"});return;}
+  if(conflicts.length){res.status(409).json({error:"transfer_organisation_ownership",organisations:conflicts});return;}
   const subscriptions = await hooks.listSubscriptions(p.uid);
   if (!v.data.acknowledge_store_subscriptions &&
       storeSubscriptionsRequireAcknowledgement(subscriptions)) {
@@ -327,8 +405,58 @@ async function changeMembership(req: Request,res: Response,remove: boolean) {
 }
 app.patch("/v1/organisations/:id/members/:userId",limiter,guard(),wrap((req,res)=>changeMembership(req,res,false)));
 app.delete("/v1/organisations/:id/members/:userId",limiter,guard(),wrap((req,res)=>changeMembership(req,res,true)));
+// Reads perform membership authorization and data selection in the same SQL statement.
+app.get("/v1/organisations/:id/members",guard(),wrap(async(req,res)=>{
+ const org=z.string().uuid().safeParse(req.params.id);
+ const cursor=z.object({after:z.string().uuid().optional()}).strict().safeParse(req.query);
+ if(!org.success||!cursor.success){res.status(400).json({error:"invalid_query"});return;}
+ const {data,error}=await admin.rpc("identity_list_members",{p_actor:principal(req).uid,p_org:org.data,p_after:cursor.data.after??null});
+ if(error||!data){res.status(503).json({error:"members_unavailable"});return;}
+ if(data.denied===true){res.status(404).json({error:"not_found"});return;}
+ res.json(data);
+}));
+app.get("/v1/organisations/:id/invitations",guard(),wrap(async(req,res)=>{
+ const org=z.string().uuid().safeParse(req.params.id);
+ const cursor=z.object({after:z.string().uuid().optional()}).strict().safeParse(req.query);
+ if(!org.success||!cursor.success){res.status(400).json({error:"invalid_query"});return;}
+ const {data,error}=await admin.rpc("identity_list_invitations",{p_actor:principal(req).uid,p_org:org.data,p_after:cursor.data.after??null});
+ if(error||!data){res.status(503).json({error:"invitations_unavailable"});return;}
+ if(data.denied===true){res.status(404).json({error:"not_found"});return;}
+ res.json(data);
+}));
+app.post("/v1/organisations/:id/invitations", limiter, guard(), wrap(async (req,res)=>{
+  const org=z.string().uuid().safeParse(req.params.id);
+  const input=z.object({email,role:z.enum(["admin","staff","customer"])}).strict().safeParse(req.body);
+  if(!org.success||!input.success){res.status(400).json({error:"invalid_invitation"});return;}
+  const invite=issueInvitation();
+  const {data,error}=await admin.rpc("identity_issue_invitation",{p_actor:principal(req).uid,p_org:org.data,p_email:input.data.email,p_role:input.data.role,p_digest:invite.digest,p_expires:invite.expiresAt});
+  if(error){res.status(503).json({error:"invitation_unavailable"});return;}
+  if(typeof data!=="string"){res.status(404).json({error:"not_found"});return;}
+  await audit("invitation_created",principal(req).uid);
+  res.status(201).json({id:data,token:invite.token,expiresAt:invite.expiresAt});
+}));
+app.post("/v1/invitations/accept",limiter,guard(),wrap(async(req,res)=>{
+  const input=z.object({token:z.string().regex(/^[A-Za-z0-9_-]{43}$/)}).strict().safeParse(req.body);
+  if(!input.success){res.status(400).json({error:"invalid_invitation"});return;}
+  const p=principal(req);
+  const {data,error}=await admin.rpc("identity_accept_invitation",{p_actor:p.uid,p_email:p.email,p_digest:invitationDigest(input.data.token)});
+  if(error){res.status(503).json({error:"invitation_unavailable"});return;}
+  if(typeof data!=="string"){res.status(404).json({error:"invitation_not_available"});return;}
+  res.json({organisation_id:data});
+}));
+app.delete("/v1/organisations/:id/invitations/:inviteId",limiter,guard(),wrap(async(req,res)=>{
+  const ids=z.object({id:z.string().uuid(),inviteId:z.string().uuid()}).safeParse(req.params);
+  if(!ids.success){res.status(400).json({error:"invalid_invitation"});return;}
+  const {data,error}=await admin.rpc("identity_revoke_invitation",{p_actor:principal(req).uid,p_org:ids.data.id,p_invite:ids.data.inviteId});
+  if(error){res.status(503).json({error:"invitation_unavailable"});return;}
+  if(data!==true){res.status(404).json({error:"not_found"});return;}
+  await audit("invitation_revoked",principal(req).uid);
+  res.status(204).end();
+}));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: "internal_error" });
 });
+if (process.env.NODE_ENV !== "test") initializeStripeBilling(process.env.STRIPE_SECRET_KEY);
+if (process.env.NODE_ENV !== "test") initializeAccountLifecycle();
 if (process.env.NODE_ENV !== "test") app.listen(config.PORT, () => console.info(`Identity API listening on ${config.PORT}`));

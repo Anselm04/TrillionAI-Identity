@@ -1,3 +1,7 @@
+import { DeletionReadiness } from "./DeletionReadiness";
+import { BillingCheckout } from "./BillingCheckout";
+import { TeamAdministration } from "./TeamAdministration";
+import { OrganisationInvitations } from "./OrganisationInvitations";
 import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
@@ -184,6 +188,8 @@ export default function App(){
         <button disabled={busy} onClick={()=>{if(window.confirm("Sign out every device, including this one?"))void signOut("global");}}>Sign out all devices</button>
         <p className="muted">Revoked devices cannot refresh their sessions. Existing access tokens may remain valid until expiry.</p>
       </section>
+      <TeamAdministration key={"team:"+session.user.id}/>
+      <OrganisationInvitations key={session.user.id}/>
       <section><h2>Account security</h2><p>Role: {profile?.role ?? "customer"}</p>
         {!factor && !enrolling && <button onClick={setupMfa}>Enable authenticator MFA</button>}
         {enrolling && <form onSubmit={confirmMfa}><p>Scan this QR code in your authenticator app or enter the key:</p>
@@ -211,12 +217,12 @@ export default function App(){
         <Field label="New password (12+ characters)" type="password" value={password} onChange={setPassword}/>
         <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm}/>
         <button disabled={busy}>Update password</button></form></section>
-      <section><h2>Subscription management</h2><button onClick={loadSubscriptions}>View subscriptions</button>
+      <section><h2>Subscription management</h2><BillingCheckout key={"billing:"+session.user.id}/><button onClick={loadSubscriptions}>View subscriptions</button>
         {subscriptions?.length===0&&<p>No subscriptions reported.</p>}
         {subscriptions?.map(s=><div key={s.id} className="box"><b>{s.plan}</b> — {s.amountLabel}<p>{s.status==="cancelled"?"Cancelled":"Renews "+(s.renewsAt??"unknown")}</p>
           {s.status!=="cancelled"&&(s.store==="direct"?<button onClick={()=>cancelSubscription(s)}>Cancel subscription</button>:<p>Manage through {s.store}: {s.manageUrl&&<a href={s.manageUrl}>Subscription settings</a>}</p>)}</div>)}</section>
       <section><h2>Your data</h2><button onClick={exportData}>Export data</button></section>
-      <section><h2>Delete account</h2><p>Permanent deletion must first verify that connected subscriptions are cancelled and product data is removed.</p>
+      <section><h2>Delete account</h2><DeletionReadiness key={session.user.id}/><p>Permanent deletion must first verify that connected subscriptions are cancelled and product data is removed.</p>
         <button className="danger" onClick={deleteAccount}>Delete my account</button></section>
     </>}
   </main>;

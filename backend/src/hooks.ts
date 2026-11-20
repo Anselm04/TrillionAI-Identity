@@ -13,3 +13,10 @@ export interface AppHooks {
 /** The host product must inject REAL, verified implementations; unconfigured
  * hooks do NOT report cancellation or account deletion success. */
 export const hooks: AppHooks = {};
+
+/** Install only the explicitly configured billing provider. */
+export function configureBilling(provider: Pick<AppHooks, "listSubscriptions" | "cancelSubscription">): void {
+  hooks.listSubscriptions = provider.listSubscriptions;
+  hooks.cancelSubscription = provider.cancelSubscription;
+}
+
