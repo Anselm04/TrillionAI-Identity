@@ -37,3 +37,8 @@ test("retrieves subsequent subscription pages",async()=>{
  });
  assert.equal((await hooks.listSubscriptions("user")).length,2);
 });
+
+test("rejects a provider response containing a subscription belonging to another customer", async()=>{
+ const adapter=createStripeBilling("test",async()=>"cus_123",async()=>new Response(JSON.stringify({data:[{id:"sub_123",customer:"cus_other",items:{data:[],has_more:false}}],has_more:false}),{status:200}));
+ await assert.rejects(adapter.listSubscriptions("u"),/invalid_subscription_response/);
+});
