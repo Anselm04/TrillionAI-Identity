@@ -1,9 +1,10 @@
+import { authenticatedSessionId } from "./session-id.js";
 import type { Request, RequestHandler } from "express";
 import { admin, publicAuthClient } from "./supabase.js";
 import { checkAccess, type Role } from "./authz.js";
 import { latestVerifiedTotpTimestamp } from "./mfa.js";
 
-export type Principal = { uid: string; email: string; role: Role; token: string; aal: string; totpFactorId?: string };
+export type Principal = { sessionId: string; uid: string; email: string; role: Role; token: string; aal: string; totpFactorId?: string };
 export type AuthRequest = Request & { principal?: Principal };
 export function guard(required: Role = "customer", allowMfaPending = false): RequestHandler {
   return async (req: AuthRequest, res, next) => {
@@ -15,6 +16,11 @@ export function guard(required: Role = "customer", allowMfaPending = false): Req
       const { data: userData, error: authError } = await authClient.auth.getUser(token);
       if (authError || !userData.user) { res.status(401).json({ error: "unauthenticated" }); return; }
       const user = userData.user;
+      const sessionId = authenticatedSessionId(token,user.id);
+      if (!sessionId) { res.status(401).json({error:"invalid_session"}); return; }
+      const {data: active,error: sessionError} = await admin.rpc("identity_session_active",{p_user:user.id,p_session:sessionId});
+      if (sessionError || typeof active !== "boolean") { res.status(503).json({error:"session_validation_unavailable"}); return; }
+      if (!active) { res.status(401).json({error:"session_revoked"}); return; }
       if (!user.email_confirmed_at) { res.status(403).json({ error: "email_verification_required" }); return; }
       const { data: roleRow, error: roleError } = await admin.from("identity_global_roles").select("role").eq("user_id", user.id).maybeSingle();
       if (roleError || (roleRow && !["owner","admin"].includes(roleRow.role))) {
@@ -37,7 +43,7 @@ export function guard(required: Role = "customer", allowMfaPending = false): Req
       } else if (needsMfa) {
         // allow only MFA completion and logout while still at AAL1.
       }
-      req.principal = { uid: user.id, email: user.email ?? "", role, token, aal, totpFactorId: factor?.id };
+      req.principal = { sessionId, uid: user.id, email: user.email ?? "", role, token, aal, totpFactorId: factor?.id };
       next();
     } catch (error) { next(error); }
   };
