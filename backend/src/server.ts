@@ -1,3 +1,4 @@
+import { initializeAccountLifecycle } from "./account-lifecycle.js";
 import { verifyStripeEvent, subscriptionEvent } from "./stripe-webhook.js";
 import { issueInvitation, invitationDigest } from "./invitations.js";
 import { collectPages } from "./pagination.js";
@@ -407,4 +408,5 @@ app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: "internal_error" });
 });
 if (process.env.NODE_ENV !== "test") initializeStripeBilling(process.env.STRIPE_SECRET_KEY);
+if (process.env.NODE_ENV !== "test") initializeAccountLifecycle();
 if (process.env.NODE_ENV !== "test") app.listen(config.PORT, () => console.info(`Identity API listening on ${config.PORT}`));
