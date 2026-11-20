@@ -246,6 +246,9 @@ app.delete("/account", limiter, guard(), wrap(async (req, res) => {
     signal: AbortSignal.timeout(8000),
   });
   if (!revoke.ok) { res.status(502).json({ error: "reauthentication_cleanup_failed" }); return; }
+  const {data: conflicts,error: conflictError}=await admin.rpc("identity_deletion_conflicts",{p_user:p.uid});
+  if(conflictError || !Array.isArray(conflicts)){res.status(503).json({error:"ownership_check_unavailable"});return;}
+  if(conflicts.length){res.status(409).json({error:"transfer_organisation_ownership",organisations:conflicts});return;}
   const subscriptions = await hooks.listSubscriptions(p.uid);
   if (!v.data.acknowledge_store_subscriptions &&
       storeSubscriptionsRequireAcknowledgement(subscriptions)) {
