@@ -150,6 +150,23 @@ app.get("/me", guard("customer", true), (req, res) => {
   }
   res.json({ id: p.uid, email: p.email, role: p.role, mfa_enabled: Boolean(p.totpFactorId) });
 });
+app.get("/account/sessions", guard(), wrap(async (req,res) => {
+  const p=principal(req);
+  const {data,error}=await admin.rpc("identity_list_sessions",{p_user:p.uid,p_current:p.sessionId});
+  if(error || !Array.isArray(data)){res.status(503).json({error:"sessions_unavailable"});return;}
+  res.json({sessions:data});
+}));
+app.delete("/account/sessions/:id",limiter,guard(),wrap(async(req,res)=>{
+  const id=z.string().uuid().safeParse(req.params.id);
+  if(!id.success){res.status(400).json({error:"invalid_session_id"});return;}
+  const p=principal(req);
+  if(id.data===p.sessionId){res.status(400).json({error:"use_local_logout"});return;}
+  const {data,error}=await admin.rpc("identity_revoke_session",{p_user:p.uid,p_current:p.sessionId,p_target:id.data});
+  if(error){res.status(503).json({error:"revocation_unavailable"});return;}
+  if(data!==true){res.status(404).json({error:"session_not_found"});return;}
+  await audit("session_revoked",p.uid);
+  res.json({revoked:true});
+}));
 app.get("/account/profile", guard(), wrap(async (req, res) => {
   const { data, error } = await admin.from("identity_profiles").select("display_name").eq("user_id", principal(req).uid).maybeSingle();
   if (error) { res.status(503).json({ error: "profile_unavailable" }); return; }
