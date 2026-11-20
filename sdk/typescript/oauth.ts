@@ -127,6 +127,7 @@ export async function exchangeCallback(input: {
   }
   if (callback.searchParams.getAll("state").length !== 1 ||
       callback.searchParams.get("state") !== t.state) throw Error("oauth_state_mismatch");
+  if (callback.searchParams.has("error") && callback.searchParams.has("code")) throw Error("ambiguous_oauth_response");
   if (callback.searchParams.has("error")) throw Error("oauth_authorization_denied");
   const codes = callback.searchParams.getAll("code");
   if (codes.length !== 1 || !codes[0]) throw Error("missing_authorization_code");
