@@ -1,3 +1,4 @@
+import { SessionInventory } from "./SessionInventory";
 import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
@@ -180,6 +181,7 @@ export default function App(){
     !profile?<section><p role="status">Checking verified account access.</p><button onClick={()=>void reload()}>Retry</button><button className="secondary" onClick={()=>void signOut()}>Sign out</button></section>:
     <><p>Signed in as {session.user.email}</p><button className="secondary" onClick={()=>void signOut()}>Sign out</button>
       <section><h2>Session management</h2>
+        <SessionInventory key={session.user.id}/>
         <button disabled={busy} onClick={()=>{if(window.confirm("Sign out all other devices?"))void signOut("others");}}>Sign out other devices</button>
         <button disabled={busy} onClick={()=>{if(window.confirm("Sign out every device, including this one?"))void signOut("global");}}>Sign out all devices</button>
         <p className="muted">Revoked devices cannot refresh their sessions. Existing access tokens may remain valid until expiry.</p>
