@@ -6,6 +6,7 @@ import { SignUpForm } from "./vendor/supabase/sign-up-form";
 import { LoginForm } from "./vendor/supabase/login-form";
 import { UpdatePasswordForm } from "./vendor/supabase/update-password-form";
 import { safeNextPath } from "./vendor/supabase/safe-next-path";
+type DeviceSession = {id:string;created_at:string;updated_at:string|null;user_agent:string|null;is_current:boolean};
 type Profile = { id:string; email:string; role:string; mfa_enabled:boolean };
 type Subscription = {id:string;plan:string;amountLabel:string;status:string;renewsAt:string|null;accessUntil:string|null;store:string;manageUrl?:string};
 function Field({label,type="text",value,onChange}:{label:string;type?:string;value:string;onChange:(value:string)=>void}) {
@@ -27,6 +28,7 @@ export default function App(){
   const [factor,setFactor]=useState<string|null>(null);
   const [mfaPending,setMfaPending]=useState(false);
   const [enrolling,setEnrolling]=useState<{id:string;qr:string;secret:string}|null>(null);
+  const [devices,setDevices]=useState<DeviceSession[]|null>(null);
   const [subscriptions,setSubscriptions]=useState<Subscription[]|null>(null);
   const [name,setName]=useState("");
   useEffect(()=>{
@@ -35,7 +37,7 @@ export default function App(){
       if(!active)return;
       setSession(current);
       if(event==="PASSWORD_RECOVERY")setMode("recover");
-      if(event==="SIGNED_OUT"){setProfile(null);setFactor(null);setMfaPending(false);setSubscriptions(null);setEnrolling(null);setName("");setCode("");setPassword("");setCurrentPassword("");setConfirm("");setMode("normal");}
+      if(event==="SIGNED_OUT"){setProfile(null);setFactor(null);setMfaPending(false);setSubscriptions(null);setDevices(null);setEnrolling(null);setName("");setCode("");setPassword("");setCurrentPassword("");setConfirm("");setMode("normal");}
     });
     void supabase.auth.getSession().then(({data})=>{if(active){setSession(data.session);setReady(true);}});
     return ()=>{active=false;subscription.unsubscribe();};
@@ -79,10 +81,25 @@ export default function App(){
     }
     setMessage("If this address is eligible, an email has been requested.");
   });}
+  async function loadDevices(){await submit(async()=>{
+    const r=await api<{sessions:DeviceSession[]}>("/account/sessions");
+    if(!r.ok)throw Error(r.error);
+    setDevices(r.data.sessions);
+  });}
+  async function revokeDevice(id:string){
+    if(!window.confirm("Sign out this session remotely?"))return;
+    await submit(async()=>{
+      const r=await api<{revoked:boolean}>("/account/sessions/"+encodeURIComponent(id),"DELETE");
+      if(!r.ok)throw Error(r.error);
+      if(!r.data.revoked)throw Error("Revocation not confirmed");
+      setDevices(old=>old?.filter(d=>d.id!==id)??null);
+      setMessage("Session revoked.");
+    });
+  }
   async function signOut(scope:"local"|"global"|"others"="local"){await submit(async()=>{
     const {error}=await supabase.auth.signOut({scope});
     if(error)throw Error(error.message);
-    if(scope==="others"){setMessage("Other sessions signed out. This session remains active.");return;}
+    if(scope==="others"){setDevices(null);setMessage("Other sessions signed out. This session remains active.");return;}
     setProfile(null);
   });}
   async function verifyMfa(e:FormEvent){e.preventDefault();if(!factor)return;await submit(async()=>{
@@ -180,9 +197,17 @@ export default function App(){
     !profile?<section><p role="status">Checking verified account access.</p><button onClick={()=>void reload()}>Retry</button><button className="secondary" onClick={()=>void signOut()}>Sign out</button></section>:
     <><p>Signed in as {session.user.email}</p><button className="secondary" onClick={()=>void signOut()}>Sign out</button>
       <section><h2>Session management</h2>
+        <button disabled={busy} onClick={loadDevices}>View signed-in sessions</button>
+        {devices?.length===0&&<p>No sessions returned.</p>}
+        {devices?.map(d=><div className="box" key={d.id}>
+          <strong>{d.is_current?"Current session":"Other session"}</strong>
+          <p>{d.user_agent||"Device details unavailable"}</p>
+          <p>Started: {new Date(d.created_at).toLocaleString()}</p>
+          {!d.is_current&&<button disabled={busy} onClick={()=>void revokeDevice(d.id)}>Revoke session</button>}
+        </div>)}
         <button disabled={busy} onClick={()=>{if(window.confirm("Sign out all other devices?"))void signOut("others");}}>Sign out other devices</button>
         <button disabled={busy} onClick={()=>{if(window.confirm("Sign out every device, including this one?"))void signOut("global");}}>Sign out all devices</button>
-        <p className="muted">Revoked devices cannot refresh their sessions. Existing access tokens may remain valid until expiry.</p>
+        <p className="muted">Revoked sessions are rejected by the Identity API. Other services must enforce their own session checks.</p>
       </section>
       <section><h2>Account security</h2><p>Role: {profile?.role ?? "customer"}</p>
         {!factor && !enrolling && <button onClick={setupMfa}>Enable authenticator MFA</button>}
