@@ -301,8 +301,32 @@ class _IdentityScreenState extends State<IdentityScreen> {
     }), child: const Text('Sign out')),
   ]);
 
+  Future<void> revokeSessions(SignOutScope scope) => perform(() async {
+    final approved = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(title: const Text('Sign out devices?'),
+        content: Text(scope == SignOutScope.others
+          ? 'All other devices will be signed out. This device stays signed in.'
+          : 'All devices, including this one, will be signed out.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sign out')),
+        ]));
+    if (approved != true || !mounted) return;
+    await supabase.auth.signOut(scope: scope);
+    if (scope == SignOutScope.others && mounted) {
+      setState(() => message = 'Other sessions signed out.');
+    }
+  });
+
   Widget accountForm() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     Text(supabase.auth.currentUser?.email ?? 'Account'),
+    const Divider(),
+    const Text('Session management'),
+    OutlinedButton(onPressed: busy ? null : () => revokeSessions(SignOutScope.others),
+      child: const Text('Sign out other devices')),
+    OutlinedButton(onPressed: busy ? null : () => revokeSessions(SignOutScope.global),
+      child: const Text('Sign out all devices')),
+    const Text('Revoked sessions cannot refresh. Existing access tokens may remain valid until expiry.'),
     const Divider(),
     if (factorId == null && enrollId == null)
       FilledButton(onPressed: busy ? null : startMfa,
@@ -366,7 +390,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
       child: const Text('Delete my account')),
     const Divider(),
     FilledButton(onPressed: busy ? null : () => perform(() async {
-      await supabase.auth.signOut(scope: SignOutScope.global);
+      await supabase.auth.signOut(scope: SignOutScope.local);
       await checkMfa();
     }), child: const Text('Sign out')),
   ]);
