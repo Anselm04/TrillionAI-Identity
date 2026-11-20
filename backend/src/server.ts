@@ -9,6 +9,7 @@ import { config } from "./config.js";
 import { admin, publicAuthClient } from "./supabase.js";
 import { guard, type AuthRequest } from "./guards.js";
 import { hooks } from "./hooks.js";
+import { initializeStripeBilling } from "./stripe-bootstrap.js";
 import { cancelDirectSubscriptionVerified, BillingVerificationError } from "./billing.js";
 import { directBillingIsCancelled, storeSubscriptionsRequireAcknowledgement } from "./deletion.js";
 
@@ -380,4 +381,5 @@ app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: "internal_error" });
 });
+if (process.env.NODE_ENV !== "test") initializeStripeBilling(process.env.STRIPE_SECRET_KEY);
 if (process.env.NODE_ENV !== "test") app.listen(config.PORT, () => console.info(`Identity API listening on ${config.PORT}`));
