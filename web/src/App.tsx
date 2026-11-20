@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { api } from "./api";
-import { validateRegistration } from "./validation";
+import { SignUpForm } from "./vendor/supabase/sign-up-form";
 import { safeNextPath } from "./vendor/supabase/safe-next-path";
 type Profile = { id:string; email:string; role:string; mfa_enabled:boolean };
 type Subscription = {id:string;plan:string;amountLabel:string;status:string;renewsAt:string|null;accessUntil:string|null;store:string;manageUrl?:string};
@@ -62,16 +62,6 @@ export default function App(){
   }
   useEffect(()=>{if(session?.access_token && mode!=="recover"){void reload();}},[session?.access_token,mode]);
   async function submit(fn:()=>Promise<void>){setBusy(true);setMessage("");try{await fn();}catch(e){setMessage(e instanceof Error?e.message:"Request failed");}finally{setBusy(false);}}
-  async function register(e:FormEvent){e.preventDefault();await submit(async()=>{
-    const validationError=validateRegistration(email,password,confirm);
-    if(validationError)throw Error(validationError);
-    const {error}=await supabase.auth.signUp({
-      email:email.trim(),password,
-      options:{emailRedirectTo:window.location.origin+"/verified"},
-    });
-    if(error)throw Error(error.message);
-    setMessage("Check your inbox, confirm the link, then sign in.");
-  });}
   async function signIn(e:FormEvent){e.preventDefault();await submit(async()=>{
     const {error}=await supabase.auth.signInWithPassword({email:email.trim(),password});
     if(error)throw Error(error.message);
@@ -185,11 +175,10 @@ export default function App(){
       <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm}/>
       <button disabled={busy}>Save new password</button></form>:
     !session?<><nav className="tabs">{(["login","signup","forgot","resend"] as const).map(k=><button className={page===k?"":"secondary"} key={k} onClick={()=>{setPage(k);setMessage("");}}>{ {login:"Sign in",signup:"Create account",forgot:"Forgot password",resend:"Resend verification"}[k]}</button>)}</nav>
-      <form onSubmit={page==="signup"?register:page==="login"?signIn:requestEmail}>
+      {page==="signup"?<SignUpForm onSignIn={()=>{setPage("login");setMessage("");}}/>:<form onSubmit={page==="login"?signIn:requestEmail}>
       <Field label="Email" type="email" value={email} onChange={setEmail}/>
-      {["signup","login"].includes(page)&&<Field label="Password" type="password" value={password} onChange={setPassword}/>}
-      {page==="signup"&&<Field label="Confirm password" type="password" value={confirm} onChange={setConfirm}/>}
-      <button disabled={busy}>{ {login:"Sign in",signup:"Create account",forgot:"Send recovery link",resend:"Resend email"}[page]}</button></form>
+      {page==="login"&&<Field label="Password" type="password" value={password} onChange={setPassword}/>}
+      <button disabled={busy}>{ {login:"Sign in",signup:"Create account",forgot:"Send recovery link",resend:"Resend email"}[page]}</button></form>}
     </>:
     mfaPending?<section><h2>Two-step verification required</h2><form onSubmit={verifyMfa}>
       <Field label="Six-digit authenticator code" value={code} onChange={setCode}/>
