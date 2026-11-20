@@ -112,6 +112,16 @@ export async function exchangeCallback(input: {
   for (const [name,value] of allowed.searchParams) {
     if (callback.searchParams.getAll(name).length !== 1 || callback.searchParams.get(name)!==value) throw Error("redirect_mismatch");
   }
+  // Reject callback parameter pollution rather than silently accepting
+  // duplicate codes, error indicators, or unrelated unregistered fields.
+  const registered = new Set([...allowed.searchParams.keys()]);
+  const permitted = new Set([...registered, "state", "code", "error", "error_description", "error_uri"]);
+  for (const name of callback.searchParams.keys()) {
+    if (!permitted.has(name)) throw Error("unexpected_oauth_parameter");
+  }
+  for (const name of ["code", "error", "error_description", "error_uri"]) {
+    if (callback.searchParams.getAll(name).length > 1) throw Error("duplicate_oauth_parameter");
+  }
   if (callback.searchParams.getAll("state").length !== 1 ||
       callback.searchParams.get("state") !== t.state) throw Error("oauth_state_mismatch");
   if (callback.searchParams.has("error")) throw Error("oauth_authorization_denied");
