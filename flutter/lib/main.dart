@@ -1,3 +1,4 @@
+import 'team_administration.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -321,6 +322,8 @@ class _IdentityScreenState extends State<IdentityScreen> {
 
   Widget accountForm() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     Text(supabase.auth.currentUser?.email ?? 'Account'),
+    const Divider(),
+    TeamAdministration(key: ValueKey('team:'+ (supabase.auth.currentUser?.id ?? '')), api: api),
     const Divider(),
     OrganisationInvitations(key: ValueKey(supabase.auth.currentUser?.id), api: api),
     const Divider(),
