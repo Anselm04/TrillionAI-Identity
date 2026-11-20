@@ -3,6 +3,8 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { api } from "./api";
 import { SignUpForm } from "./vendor/supabase/sign-up-form";
+import { LoginForm } from "./vendor/supabase/login-form";
+import { UpdatePasswordForm } from "./vendor/supabase/update-password-form";
 import { safeNextPath } from "./vendor/supabase/safe-next-path";
 type Profile = { id:string; email:string; role:string; mfa_enabled:boolean };
 type Subscription = {id:string;plan:string;amountLabel:string;status:string;renewsAt:string|null;accessUntil:string|null;store:string;manageUrl?:string};
@@ -62,10 +64,6 @@ export default function App(){
   }
   useEffect(()=>{if(session?.access_token && mode!=="recover"){void reload();}},[session?.access_token,mode]);
   async function submit(fn:()=>Promise<void>){setBusy(true);setMessage("");try{await fn();}catch(e){setMessage(e instanceof Error?e.message:"Request failed");}finally{setBusy(false);}}
-  async function signIn(e:FormEvent){e.preventDefault();await submit(async()=>{
-    const {error}=await supabase.auth.signInWithPassword({email:email.trim(),password});
-    if(error)throw Error(error.message);
-  });}
   async function requestEmail(e:FormEvent){e.preventDefault();await submit(async()=>{
     const address=email.trim();
     if(page==="forgot"){
@@ -109,12 +107,7 @@ export default function App(){
   });}
   async function updatePassword(e:FormEvent){e.preventDefault();await submit(async()=>{
     if(password.length<12||password.length>128||password!==confirm)throw Error("New passwords must match and be at least 12 characters");
-    if(mode==="recover"){
-      const {error}=await supabase.auth.updateUser({password});
-      if(error)throw Error(error.message);
-      const {error: signOutError}=await supabase.auth.signOut({scope:"global"});
-      if(signOutError)throw Error("Password updated, but session revocation could not be confirmed. Sign out and retry.");
-    } else {
+    {
       if(!currentPassword)throw Error("Enter your current password");
       const r=await api<{updated:boolean}>("/auth/change-password","POST",{
         current_password:currentPassword,new_password:password,
@@ -170,14 +163,10 @@ export default function App(){
     <h1>TrillionAI Identity</h1>
     <p className="muted">Secure account registration, verification and management</p>
     {message && <p role="status" className={message.includes("confirmed")?"good":"error"}>{message}</p>}
-    {mode==="recover" && session ? <form onSubmit={updatePassword}><h2>Set a new password</h2>
-      <Field label="New password (12+ characters)" type="password" value={password} onChange={setPassword}/>
-      <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm}/>
-      <button disabled={busy}>Save new password</button></form>:
+    {mode==="recover" && session ? <UpdatePasswordForm onComplete={()=>{setMode("normal");setPage("login");setMessage("Password updated. Sign in again with your new password.");}}/>:
     !session?<><nav className="tabs">{(["login","signup","forgot","resend"] as const).map(k=><button className={page===k?"":"secondary"} key={k} onClick={()=>{setPage(k);setMessage("");}}>{ {login:"Sign in",signup:"Create account",forgot:"Forgot password",resend:"Resend verification"}[k]}</button>)}</nav>
-      {page==="signup"?<SignUpForm onSignIn={()=>{setPage("login");setMessage("");}}/>:<form onSubmit={page==="login"?signIn:requestEmail}>
+      {page==="signup"?<SignUpForm onSignIn={()=>{setPage("login");setMessage("");}}/>:page==="login"?<LoginForm onForgot={()=>{setPage("forgot");setMessage("");}} onSignUp={()=>{setPage("signup");setMessage("");}}/>:<form onSubmit={requestEmail}>
       <Field label="Email" type="email" value={email} onChange={setEmail}/>
-      {page==="login"&&<Field label="Password" type="password" value={password} onChange={setPassword}/>}
       <button disabled={busy}>{ {login:"Sign in",signup:"Create account",forgot:"Send recovery link",resend:"Resend email"}[page]}</button></form>}
     </>:
     mfaPending?<section><h2>Two-step verification required</h2><form onSubmit={verifyMfa}>
