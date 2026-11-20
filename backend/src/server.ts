@@ -1,3 +1,4 @@
+import { credentialIssueInput, issueServiceKey, digestServiceKey } from "./service-credentials.js";
 import { developerClientInput } from "./developer-client.js";
 import { createCheckoutProvider, parseCheckoutPlans } from "./stripe-checkout.js";
 import { initializeAccountLifecycle } from "./account-lifecycle.js";
@@ -498,6 +499,52 @@ app.delete("/v1/organisations/:id/clients/:clientId",limiter,guard(),wrap(async(
  if(error){res.status(503).json({error:"client_revocation_unavailable"});return;}
  if(data!==true){res.status(404).json({error:"not_found"});return;}
  res.status(204).end();
+}));
+// Service credentials are opaque API keys, NOT OAuth client credentials/JWTs.
+// Their only granted scope is the dedicated service introspection endpoint.
+app.post("/v1/organisations/:id/clients/:clientId/credentials",limiter,guard(),wrap(async(req,res)=>{
+ const ids=z.object({id:z.string().uuid(),clientId:z.string().uuid()}).safeParse(req.params);
+ const input=credentialIssueInput.safeParse(req.body);
+ if(!ids.success||!input.success){res.status(400).json({error:"invalid_credential_request"});return;}
+ const key=issueServiceKey(Date.now(),input.data.expires_in_days);
+ const {data,error}=await admin.rpc("identity_issue_service_credential",{
+  p_actor:principal(req).uid,p_org:ids.data.id,p_client:ids.data.clientId,
+  p_name:input.data.name,p_digest:key.digest,p_hint:key.secret.slice(0,15),
+  p_scopes:input.data.scopes,p_expires:key.expiresAt
+ });
+ if(error){res.status(error.code==="23514"?409:503).json({error:error.code==="23514"?"credential_limit_reached":"credential_issue_unavailable"});return;}
+ if(typeof data!=="string"){res.status(404).json({error:"not_found_or_public_client"});return;}
+ res.status(201).json({id:data,name:input.data.name,secret:key.secret,scopes:input.data.scopes,expires_at:key.expiresAt,one_time_display:true});
+}));
+app.get("/v1/organisations/:id/clients/:clientId/credentials",guard(),wrap(async(req,res)=>{
+ const ids=z.object({id:z.string().uuid(),clientId:z.string().uuid()}).safeParse(req.params);
+ const cursor=z.object({after:z.string().uuid().optional()}).strict().safeParse(req.query);
+ if(!ids.success||!cursor.success){res.status(400).json({error:"invalid_query"});return;}
+ const {data,error}=await admin.rpc("identity_list_service_credentials",{
+  p_actor:principal(req).uid,p_org:ids.data.id,p_client:ids.data.clientId,p_after:cursor.data.after??null
+ });
+ if(error){res.status(503).json({error:"credentials_unavailable"});return;}
+ if(!data){res.status(404).json({error:"not_found"});return;}
+ res.json(data);
+}));
+app.delete("/v1/organisations/:id/clients/:clientId/credentials/:credentialId",limiter,guard(),wrap(async(req,res)=>{
+ const ids=z.object({id:z.string().uuid(),clientId:z.string().uuid(),credentialId:z.string().uuid()}).safeParse(req.params);
+ if(!ids.success){res.status(400).json({error:"invalid_credential"});return;}
+ const {data,error}=await admin.rpc("identity_revoke_service_credential",{
+  p_actor:principal(req).uid,p_org:ids.data.id,p_client:ids.data.clientId,p_credential:ids.data.credentialId
+ });
+ if(error){res.status(503).json({error:"credential_revocation_unavailable"});return;}
+ if(data!==true){res.status(404).json({error:"not_found"});return;}
+ res.status(204).end();
+}));
+app.post("/v1/service-credentials/introspect",limiter,wrap(async(req,res)=>{
+ const header=req.header("authorization")??"";
+ const match=/^Bearer (tai_sk_[0-9a-f]{64})$/.exec(header);
+ if(!match){res.status(401).json({error:"invalid_service_credential"});return;}
+ const {data,error}=await admin.rpc("identity_introspect_service_credential",{p_digest:digestServiceKey(match[1])});
+ if(error){res.status(503).json({error:"credential_validation_unavailable"});return;}
+ if(!data){res.status(401).json({error:"invalid_service_credential"});return;}
+ res.json({active:true,...data});
 }));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
