@@ -1,3 +1,4 @@
+import { verifyStripeEvent, subscriptionEvent } from "./stripe-webhook.js";
 import { issueInvitation, invitationDigest } from "./invitations.js";
 import { collectPages } from "./pagination.js";
 import express, { type Request, type Response, type NextFunction } from "express";
@@ -23,6 +24,26 @@ app.use(cors({ origin: (origin, callback) => {
   if (!origin || allowedOrigins.has(origin)) callback(null, true);
   else callback(new Error("origin_not_allowed"));
 }, credentials: false }));
+app.post("/webhooks/stripe",express.raw({type:"application/json",limit:"256kb"}),wrap(async(req,res)=>{
+ const secret=process.env.STRIPE_WEBHOOK_SECRET?.trim();
+ if(!secret){res.status(503).json({error:"webhook_not_configured"});return;}
+ let event;
+ try {
+  if(!Buffer.isBuffer(req.body))throw Error("invalid_body");
+  event=verifyStripeEvent(req.body,req.header("stripe-signature")??"",secret);
+ } catch {res.status(400).json({error:"invalid_webhook"});return;}
+ const mode=process.env.STRIPE_EVENT_MODE;
+ if(!["test","live"].includes(mode??"") || event.livemode!==(mode==="live")){res.status(400).json({error:"webhook_mode_mismatch"});return;}
+ let record;
+ try {record=subscriptionEvent(event);} catch {res.status(400).json({error:"invalid_event"});return;}
+ if(!record){res.json({received:true});return;}
+ const {error}=await admin.from("identity_stripe_events").insert({
+  event_id:record.eventId,customer_id:record.customerId,subscription_id:record.subscriptionId,
+  event_created:record.eventCreated,status:record.status,live_mode:record.liveMode
+ });
+ if(error&&error.code!=="23505"){res.status(503).json({error:"webhook_storage_unavailable"});return;}
+ res.json({received:true});
+}));
 app.use(express.json({ limit: "16kb" }));
 app.use((_, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
 const limiter = rateLimit({ windowMs: 15 * 60_000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false });
