@@ -61,3 +61,17 @@ test("rejects callback query pollution before token exchange",async()=>{
   assert.equal(called,false);
  }
 });
+
+test("rejects fragment-bearing callback without token exchange",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ let called=false;
+ await assert.rejects(exchangeCallback({transaction,callbackUrl:redirectUri+"?code=valid&state="+transaction.state+"#access_token=leak",fetcher:async()=>{called=true;throw Error("unexpected_fetch");}}),/redirect_mismatch/);
+ assert.equal(called,false);
+});
+test("rejects registered OAuth protocol parameters",async()=>{
+ const registeredRedirect="https://app.example/callback?state=preconfigured";
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri:registeredRedirect});
+ let called=false;
+ await assert.rejects(exchangeCallback({transaction,callbackUrl:registeredRedirect+"&code=valid&state="+transaction.state,fetcher:async()=>{called=true;throw Error("unexpected_fetch");}}),/invalid_registered_callback_parameter|redirect_mismatch/);
+ assert.equal(called,false);
+});
