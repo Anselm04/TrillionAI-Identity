@@ -1,3 +1,4 @@
+import { createCheckoutProvider, parseCheckoutPlans } from "./stripe-checkout.js";
 import { initializeAccountLifecycle } from "./account-lifecycle.js";
 import { verifyStripeEvent, subscriptionEvent } from "./stripe-webhook.js";
 import { issueInvitation, invitationDigest } from "./invitations.js";
@@ -186,6 +187,38 @@ app.patch("/account/profile", limiter, guard(), wrap(async (req, res) => {
   const { error } = await admin.from("identity_profiles").upsert({ user_id: principal(req).uid, display_name: v.data.display_name });
   if (error) { res.status(503).json({ error: "profile_not_saved" }); return; }
   res.json({ message: "Profile saved" });
+}));
+app.get("/account/billing/plans",guard(),wrap(async(_req,res)=>{
+ const plans=parseCheckoutPlans(process.env.STRIPE_CHECKOUT_PLANS);
+ res.json({plans:process.env.STRIPE_SECRET_KEY?plans.map(p=>({id:p.id})):[]});
+}));
+app.post("/account/billing/checkout",limiter,guard(),wrap(async(req,res)=>{
+ const input=z.object({plan:z.string().max(64),attempt:z.string().uuid()}).strict().safeParse(req.body);
+ if(!input.success){res.status(400).json({error:"invalid_checkout"});return;}
+ const secret=process.env.STRIPE_SECRET_KEY;
+ if(!secret||!hooks.listSubscriptions){res.status(503).json({error:"billing_not_connected"});return;}
+ const plan=parseCheckoutPlans(process.env.STRIPE_CHECKOUT_PLANS).find(p=>p.id===input.data.plan);
+ if(!plan){res.status(404).json({error:"plan_not_found"});return;}
+ const uid=principal(req).uid;
+ const provider=createCheckoutProvider(secret,config.APP_URL);
+ const {data:stored,error:readError}=await admin.from("identity_stripe_customers").select("stripe_customer_id").eq("user_id",uid).maybeSingle();
+ if(readError){res.status(503).json({error:"customer_lookup_unavailable"});return;}
+ let customer=stored?.stripe_customer_id;
+ if(!customer){
+  const created=await provider.createCustomer(uid);
+  const {error:writeError}=await admin.from("identity_stripe_customers").insert({user_id:uid,stripe_customer_id:created});
+  if(writeError&&writeError.code!=="23505"){res.status(503).json({error:"customer_mapping_unavailable"});return;}
+  const {data:confirmed,error:confirmError}=await admin.from("identity_stripe_customers").select("stripe_customer_id").eq("user_id",uid).single();
+  if(confirmError||!confirmed?.stripe_customer_id){res.status(503).json({error:"customer_mapping_unconfirmed"});return;}
+  customer=confirmed.stripe_customer_id;
+ }
+ if(typeof customer!=="string"){res.status(503).json({error:"customer_mapping_unconfirmed"});return;}
+ const subscriptions=await hooks.listSubscriptions(uid);
+ if(subscriptions.some(s=>s.status!=="cancelled"||Boolean(s.accessUntil&&Date.parse(s.accessUntil)>Date.now()))){
+  res.status(409).json({error:"existing_subscription"});return;
+ }
+ const url=await provider.checkout(uid,customer,plan,input.data.attempt);
+ res.status(201).json({url});
 }));
 app.get("/account/subscriptions", guard(), wrap(async (req, res) => {
   if (!hooks.listSubscriptions) { res.status(501).json({ error: "billing_not_connected" }); return; }
