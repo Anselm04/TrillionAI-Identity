@@ -22,3 +22,10 @@ test('rejects malformed payloads without throwing',()=>{
     assert.equal(validatedSessionId(token,uid),null);
   }
 });
+
+test('rejects incomplete and oversized bearer tokens',()=>{
+  const payload=Buffer.from(JSON.stringify({sub:uid,session_id:sid})).toString('base64url');
+  for(const token of ['.'+payload+'.signature','e30.'+payload+'.','e30.'+payload+'.'+'a'.repeat(32768)]) {
+    assert.equal(validatedSessionId(token,uid),null);
+  }
+});
