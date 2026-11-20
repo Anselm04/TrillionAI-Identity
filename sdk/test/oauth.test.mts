@@ -44,3 +44,20 @@ test("rejects noncanonical or non-TLS callbacks",async()=>{
  await assert.rejects(beginAuthorization({issuer,clientId:"app",redirectUri:"http://evil.example/callback"}),/https_required/);
  await assert.rejects(beginAuthorization({issuer,clientId:"app",redirectUri:"https://app.example/callback#frag"}),/invalid_callback/);
 });
+
+test("rejects callback query pollution before token exchange",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const base=redirectUri+"?code=valid&state="+transaction.state;
+ const invalid=[
+  base+"&code=another",
+  base+"&error=access_denied&error=other",
+  base+"&error_description=first&error_description=second",
+  base+"&unexpected=1",
+ ];
+ for(const callbackUrl of invalid){
+  let called=false;
+  await assert.rejects(exchangeCallback({transaction,callbackUrl,fetcher:async()=>{called=true;throw Error("unexpected_fetch");}}),
+    /duplicate_oauth_parameter|unexpected_oauth_parameter|oauth_authorization_denied/);
+  assert.equal(called,false);
+ }
+});
