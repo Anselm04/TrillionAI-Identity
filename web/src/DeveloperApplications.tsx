@@ -1,3 +1,4 @@
+import { ServiceCredentials } from "./ServiceCredentials";
 import {useState} from "react";
 import {api} from "./api";
 type Org={id:string;name:string;role:string};
@@ -15,7 +16,7 @@ export function DeveloperApplications(){
  <label>Application name<input required maxLength={100} value={name} onChange={e=>setName(e.target.value)}/></label>
  <label>Client type<select value={kind} onChange={e=>setKind(e.target.value)}><option value="public">Public</option><option value="confidential">Confidential</option></select></label>
  <label>HTTPS callback URLs (one per line)<textarea required value={redirects} onChange={e=>setRedirects(e.target.value)}/></label><button disabled={busy}>Register application</button></form>
- {clients.map(c=><div className="box" key={c.id}><h3>{c.name}</h3><p>Registry ID: {c.id}</p><p>{c.client_type} — {c.revoked_at?"Revoked":"Registered"}</p>{c.redirect_uris.map(uri=><p key={uri}>{uri}</p>)}{!c.revoked_at&&<button disabled={busy} onClick={()=>{if(window.confirm("Revoke this application registration?"))void run(async()=>{const r=await api(path(org)+"/"+encodeURIComponent(c.id),"DELETE");if(!r.ok)throw Error(r.error);await load(org)})}}>Revoke registration</button>}</div>)}
+ {clients.map(c=><div className="box" key={c.id}><h3>{c.name}</h3><p>Registry ID: {c.id}</p><p>{c.client_type} — {c.revoked_at?"Revoked":"Registered"}</p>{c.redirect_uris.map(uri=><p key={uri}>{uri}</p>)}{c.client_type==="confidential"&&!c.revoked_at&&<ServiceCredentials key={c.id} organisationId={org} clientId={c.id}/>}{!c.revoked_at&&<button disabled={busy} onClick={()=>{if(window.confirm("Revoke this application registration?"))void run(async()=>{const r=await api(path(org)+"/"+encodeURIComponent(c.id),"DELETE");if(!r.ok)throw Error(r.error);await load(org)})}}>Revoke registration</button>}</div>)}
  {cursor&&<button disabled={busy} onClick={()=>void run(()=>load(org,cursor))}>Load more</button>}</>}
  {message&&<p role="status">{message}</p>}</section>
 }
