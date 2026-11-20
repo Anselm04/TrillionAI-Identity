@@ -53,6 +53,8 @@ class _IdentityScreenState extends State<IdentityScreen> {
   String? secret;
   List<dynamic>? subscriptions;
   List<Map<String,dynamic>>? accountSessions;
+  final passwordlessCode=TextEditingController();
+  String? passwordlessEmail;
 
   @override
   void initState() {
@@ -61,7 +63,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
       if (state.event == AuthChangeEvent.passwordRecovery) page = 'reset';
       if (state.event == AuthChangeEvent.signedOut) {
         page = 'signin'; needsMfa = false; factorId = null; accountRole = null;
-        enrollId = null; qr = null; secret = null; subscriptions = null; accountSessions = null;
+        enrollId = null; qr = null; secret = null; subscriptions = null; accountSessions = null; passwordlessEmail=null; passwordlessCode.clear();
         for (final controller in [password,currentPassword,confirm,code,displayName,newEmail,deletePassword,deleteConfirmation]) { controller.clear(); }
       }
       if (mounted) setState(() {});
@@ -275,6 +277,239 @@ class _IdentityScreenState extends State<IdentityScreen> {
     child: TextField(controller: controller, obscureText: obscured,
       decoration: InputDecoration(labelText: label, border: const OutlineInputBorder())),
   );
+
+  Future<void> requestPasswordless() => perform(() async {
+    final address=email.text.trim().toLowerCase();
+    if(!address.contains('@'))throw StateError('Enter a valid email.');
+    try {
+      await supabase.auth.signInWithOtp(email:address,shouldCreateUser:false,
+        emailRedirectTo:redirectUrl.isEmpty?null:redirectUrl);
+    } on AuthException catch(e) {
+      if(e.statusCode=='429'||(int.tryParse(e.statusCode??'')??500)>=500)rethrow;
+    }
+    if(mounted)setState((){passwordlessEmail=address;passwordlessCode.clear();message='If eligible, check your email for a sign-in link or code.';});
+  });
+  Future<void> verifyPasswordless() => perform(() async {
+    final address=passwordlessEmail;
+    if(address==null||address!=email.text.trim().toLowerCase())throw StateError('Request a code for this address first.');
+    final value=passwordlessCode.text.trim();
+    if(!RegExp(r'^[0-9]{6,10} => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    Text(page == 'signup' ? 'Create account' : page == 'forgot'
+      ? 'Forgot password' : page == 'resend' ? 'Resend verification' : 'Sign in',
+      style: Theme.of(context).textTheme.headlineSmall),
+    field('Email', email),
+    if (page == 'signin' || page == 'signup') field('Password', password, obscured: true),
+    if (page == 'signup') field('Confirm password', confirm, obscured: true),
+    FilledButton(onPressed: busy ? null : page == 'signup' ? register :
+      page == 'forgot' ? forgot : page == 'resend' ? resend : signin,
+      child: Text(page == 'signup' ? 'Create account' : page == 'forgot'
+        ? 'Send recovery email' : page == 'resend' ? 'Resend email' : 'Sign in')),
+    if(page=='signin') ...[
+      OutlinedButton(onPressed:busy?null:requestPasswordless,child:const Text('Send passwordless sign-in email')),
+      if(passwordlessEmail!=null)...[
+        field('Email code (if included)',passwordlessCode),
+        OutlinedButton(onPressed:busy?null:verifyPasswordless,child:const Text('Verify email code')),
+      ],
+    ],
+    Wrap(children: [
+      TextButton(onPressed: () => setState(() => page = 'signup'), child: const Text('Create account')),
+      TextButton(onPressed: () => setState(() => page = 'signin'), child: const Text('Sign in')),
+      TextButton(onPressed: () => setState(() => page = 'forgot'), child: const Text('Forgot password')),
+      TextButton(onPressed: () => setState(() => page = 'resend'), child: const Text('Resend verification')),
+    ]),
+  ]);
+
+  Widget mfaForm() => Column(children: [
+    const Text('Enter the six-digit code from your authenticator app.'),
+    field('Code', code),
+    FilledButton(onPressed: busy || factorId == null ? null : () => verifyMfa(factorId!),
+      child: const Text('Verify authenticator')),
+    TextButton(onPressed: () => perform(() async {
+      await supabase.auth.signOut(); await checkMfa();
+    }), child: const Text('Sign out')),
+  ]);
+
+  Future<void> revokeSessions(SignOutScope scope) => perform(() async {
+    final approved = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(title: const Text('Sign out devices?'),
+        content: Text(scope == SignOutScope.others
+          ? 'All other devices will be signed out. This device stays signed in.'
+          : 'All devices, including this one, will be signed out.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sign out')),
+        ]));
+    if (approved != true || !mounted) return;
+    await supabase.auth.signOut(scope: scope);
+    if (scope == SignOutScope.others && mounted) {
+      setState(() { accountSessions = null; message = 'Other sessions signed out.'; });
+    }
+  });
+
+  Future<void> loadAccountSessions() => perform(() async {
+    final userId = supabase.auth.currentUser?.id;
+    final result = await api.request('GET', '/account/sessions');
+    final rows = result['sessions'];
+    if (rows is! List) throw StateError('Invalid session response.');
+    if (!mounted || userId == null || supabase.auth.currentUser?.id != userId) return;
+    setState(() => accountSessions = rows.map((row) => Map<String,dynamic>.from(row as Map)).toList());
+  });
+
+  Future<void> revokeAccountSession(String id) => perform(() async {
+    final userId = supabase.auth.currentUser?.id;
+    final approved = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(title: const Text('Revoke this session?'), actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Revoke')),
+      ]));
+    if (approved != true || !mounted || userId == null || supabase.auth.currentUser?.id != userId) return;
+    await api.request('DELETE', '/account/sessions/' + Uri.encodeComponent(id));
+    if (!mounted || supabase.auth.currentUser?.id != userId) return;
+    setState(() {
+      accountSessions?.removeWhere((row) => row['id'] == id);
+      message = 'Session revoked.';
+    });
+  });
+
+  Widget accountForm() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    Text(supabase.auth.currentUser?.email ?? 'Account'),
+    const Divider(),
+    TeamAdministration(key: ValueKey('team:'+ (supabase.auth.currentUser?.id ?? '')), api: api),
+    DeveloperApplications(key: ValueKey('clients:'+ (supabase.auth.currentUser?.id ?? '')), api: api),
+    const Divider(),
+    OrganisationInvitations(key: ValueKey(supabase.auth.currentUser?.id), api: api),
+    const Divider(),
+    const Text('Session management'),
+    OutlinedButton(onPressed: busy ? null : loadAccountSessions,
+      child: const Text('View or refresh sessions')),
+    if (accountSessions != null)
+      for (final row in accountSessions!)
+        ListTile(
+          title: Text(row['current_session'] == true ? 'Current session' : 'Other session'),
+          subtitle: Text(DateTime.tryParse(row['created_at']?.toString() ?? '')?.toLocal().toString() ?? 'Creation time unavailable'),
+          trailing: row['current_session'] == true || row['id'] is! String ? null :
+            TextButton(onPressed: busy ? null : () => revokeAccountSession(row['id'] as String), child: const Text('Revoke')),
+        ),
+    OutlinedButton(onPressed: busy ? null : () => revokeSessions(SignOutScope.others),
+      child: const Text('Sign out other devices')),
+    OutlinedButton(onPressed: busy ? null : () => revokeSessions(SignOutScope.global),
+      child: const Text('Sign out all devices')),
+    const Text('Revoked sessions cannot refresh. Existing access tokens may remain valid until expiry.'),
+    const Divider(),
+    if (factorId == null && enrollId == null)
+      FilledButton(onPressed: busy ? null : startMfa,
+        child: const Text('Enable authenticator MFA')),
+    if (enrollId != null) ...[
+      const Text('Scan with an authenticator app, or enter the secret:'),
+      if (qr != null) SizedBox(height: 190, child: QrImageView(data: qr!)),
+      if (secret != null) SelectableText(secret!),
+      field('Code', code),
+      FilledButton(onPressed: busy ? null : () => verifyMfa(enrollId!),
+        child: const Text('Confirm authenticator')),
+    ],
+    if (factorId != null) ...[
+      const Text('Authenticator MFA enabled.'),
+      TextButton(onPressed: busy ? null : disableMfa,
+        child: const Text('Remove authenticator')),
+    ],
+    if (accountRole == 'owner' && factorId != null) ...[
+      const Divider(),
+      const Text('Private owner verification'),
+      const Text('A fresh authenticator challenge is required for privileged actions.'),
+      field('Owner verification code', code),
+      FilledButton(onPressed: busy ? null : stepUpOwner,
+        child: const Text('Verify owner access')),
+    ],
+    const Divider(),
+    field('Display name', displayName),
+    FilledButton(onPressed: busy ? null : saveProfile, child: const Text('Save profile')),
+    const Divider(),
+    field('New email', newEmail),
+    FilledButton(onPressed: busy ? null : changeEmail, child: const Text('Change email')),
+    const Divider(),
+    FilledButton(onPressed: busy ? null : listSubscriptions,
+      child: const Text('Manage subscriptions')),
+    if (subscriptions != null)
+      for (final raw in subscriptions!)
+        if (raw is Map<String, dynamic>)
+          ListTile(
+            title: Text(raw['plan']?.toString() ?? 'Subscription'),
+            subtitle: Text(raw['status']?.toString() ?? ''),
+            trailing: raw['store'] == 'direct' && raw['status'] != 'cancelled'
+              ? TextButton(onPressed: busy ? null :
+                  () => cancelSubscription(raw['id'].toString()),
+                  child: const Text('Cancel')) : null,
+          ),
+    const Divider(),
+    FilledButton(onPressed: busy ? null : exportData, child: const Text('Export my data')),
+    const Divider(),
+    const Text('Change password'),
+    field('Current password', currentPassword, obscured: true),
+    field('New password', password, obscured: true),
+    field('Confirm new password', confirm, obscured: true),
+    FilledButton(onPressed: busy ? null : savePassword, child: const Text('Change password')),
+    const Divider(),
+    const Text('Delete account (irreversible)'),
+    const Text('Enter your CURRENT password and type DELETE into confirmation.'),
+    field('Current password', deletePassword, obscured: true),
+    field('Type DELETE', deleteConfirmation),
+    FilledButton(onPressed: busy ? null : deleteAccount,
+      style: FilledButton.styleFrom(backgroundColor: Colors.red),
+      child: const Text('Delete my account')),
+    const Divider(),
+    FilledButton(onPressed: busy ? null : () => perform(() async {
+      await supabase.auth.signOut(scope: SignOutScope.local);
+      await checkMfa();
+    }), child: const Text('Sign out')),
+  ]);
+
+  @override
+  Widget build(BuildContext context) {
+    final signedIn = supabase.auth.currentSession != null;
+    return Scaffold(
+      appBar: AppBar(title: const Text('TrillionAI Identity')),
+      body: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: ListView(padding: const EdgeInsets.all(20), children: [
+          if (!signedIn) authForm()
+          else if (page == 'reset') Column(children: [
+            const Text('Set new password'),
+            field('New password', password, obscured: true),
+            field('Confirm password', confirm, obscured: true),
+            FilledButton(onPressed: busy ? null : savePassword,
+              child: const Text('Save password')),
+          ])
+          else if (needsMfa) mfaForm()
+          else if (accountRole == null) Column(children: [
+            const Text('Checking verified account access.'),
+            TextButton(onPressed: busy ? null : checkMfa, child: const Text('Retry')),
+            TextButton(onPressed: busy ? null : () => perform(() async { await supabase.auth.signOut(scope: SignOutScope.local); }), child: const Text('Sign out')),
+          ])
+          else accountForm(),
+          if (busy) const LinearProgressIndicator(),
+          if (message.isNotEmpty) Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Text(message)),
+        ]),
+      )));
+  }
+
+  @override
+  void dispose() {
+    changes.cancel();
+    passwordlessCode.dispose();
+    for (final c in [email, password, currentPassword, confirm, code, displayName, newEmail, deletePassword, deleteConfirmation]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+}
+).hasMatch(value))throw StateError('Enter a valid email code.');
+    await supabase.auth.verifyOTP(email:address,token:value,type:OtpType.email);
+    passwordlessCode.clear();
+    if(mounted)setState(()=>passwordlessEmail=null);
+    await checkMfa();
+  });
 
   Widget authForm() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     Text(page == 'signup' ? 'Create account' : page == 'forgot'
