@@ -27,7 +27,7 @@ export function mapStripeSubscription(s: StripeSubscription): Subscription {
     } catch { return "See invoice"; }
   }).join(" + ");
   return {id:s.id,plan,amountLabel,status,store:"direct",renewsAt:active && !scheduled ? iso(end) : null,
-    accessUntil: terminal ? iso(s.ended_at) : active ? iso(s.cancel_at ?? end) : null};
+    accessUntil: !terminal && active ? iso(Math.min(s.cancel_at ?? end,end)) : null};
 }
 export function createStripeBilling(secret: string, lookup: CustomerLookup, request: Fetcher = fetch): Pick<AppHooks,"listSubscriptions"|"cancelSubscription"> {
   async function call<T>(path: string, method = "GET", body?: URLSearchParams): Promise<T> {
