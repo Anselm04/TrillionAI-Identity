@@ -35,7 +35,8 @@ class IdentityApi {
     if (body != null) req.body = jsonEncode(body);
     final response = await http.Response.fromStream(
         await req.send().timeout(const Duration(seconds: 20)));
-    final decoded = jsonDecode(response.body);
+    final decoded = response.statusCode == 204 && response.body.trim().isEmpty
+        ? <String, dynamic>{} : jsonDecode(response.body);
     final data = decoded is Map<String, dynamic>
         ? decoded : <String, dynamic>{};
     if (response.statusCode < 200 || response.statusCode >= 300) {
