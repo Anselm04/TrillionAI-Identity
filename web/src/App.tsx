@@ -29,6 +29,7 @@ export default function App(){
   const [mfaPending,setMfaPending]=useState(false);
   const [enrolling,setEnrolling]=useState<{id:string;qr:string;secret:string}|null>(null);
   const [subscriptions,setSubscriptions]=useState<Subscription[]|null>(null);
+  const [sessionInventoryRevision,setSessionInventoryRevision]=useState(0);
   const [name,setName]=useState("");
   useEffect(()=>{
     let active=true;
@@ -83,7 +84,7 @@ export default function App(){
   async function signOut(scope:"local"|"global"|"others"="local"){await submit(async()=>{
     const {error}=await supabase.auth.signOut({scope});
     if(error)throw Error(error.message);
-    if(scope==="others"){setMessage("Other sessions signed out. This session remains active.");return;}
+    if(scope==="others"){setSessionInventoryRevision(n=>n+1);setMessage("Other sessions signed out. This session remains active.");return;}
     setProfile(null);
   });}
   async function verifyMfa(e:FormEvent){e.preventDefault();if(!factor)return;await submit(async()=>{
@@ -181,10 +182,10 @@ export default function App(){
     !profile?<section><p role="status">Checking verified account access.</p><button onClick={()=>void reload()}>Retry</button><button className="secondary" onClick={()=>void signOut()}>Sign out</button></section>:
     <><p>Signed in as {session.user.email}</p><button className="secondary" onClick={()=>void signOut()}>Sign out</button>
       <section><h2>Session management</h2>
-        <SessionInventory key={session.user.id}/>
+        <SessionInventory key={session.user.id+":"+sessionInventoryRevision}/>
         <button disabled={busy} onClick={()=>{if(window.confirm("Sign out all other devices?"))void signOut("others");}}>Sign out other devices</button>
         <button disabled={busy} onClick={()=>{if(window.confirm("Sign out every device, including this one?"))void signOut("global");}}>Sign out all devices</button>
-        <p className="muted">Revoked devices cannot refresh their sessions. Existing access tokens may remain valid until expiry.</p>
+        <p className="muted">Revoked sessions are rejected by the Identity API. Other services that validate tokens without checking sessions may accept existing tokens until expiry.</p>
       </section>
       <section><h2>Account security</h2><p>Role: {profile?.role ?? "customer"}</p>
         {!factor && !enrolling && <button onClick={setupMfa}>Enable authenticator MFA</button>}
