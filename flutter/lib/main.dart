@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'identity_api.dart';
+import 'organisation_invitations.dart';
 import 'validation.dart';
 
 const redirectUrl = String.fromEnvironment('AUTH_REDIRECT_URL');
@@ -320,6 +321,8 @@ class _IdentityScreenState extends State<IdentityScreen> {
 
   Widget accountForm() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     Text(supabase.auth.currentUser?.email ?? 'Account'),
+    const Divider(),
+    OrganisationInvitations(key: ValueKey(supabase.auth.currentUser?.id), api: api),
     const Divider(),
     const Text('Session management'),
     OutlinedButton(onPressed: busy ? null : () => revokeSessions(SignOutScope.others),
