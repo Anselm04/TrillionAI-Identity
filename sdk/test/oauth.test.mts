@@ -75,3 +75,10 @@ test("rejects registered OAuth protocol parameters",async()=>{
  await assert.rejects(exchangeCallback({transaction,callbackUrl:registeredRedirect+"&code=valid&state="+transaction.state,fetcher:async()=>{called=true;throw Error("unexpected_fetch");}}),/invalid_registered_callback_parameter|redirect_mismatch/);
  assert.equal(called,false);
 });
+
+test("rejects simultaneous OAuth code and error before token exchange",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ let called=false;
+ await assert.rejects(exchangeCallback({transaction,callbackUrl:redirectUri+"?code=valid&error=access_denied&state="+transaction.state,fetcher:async()=>{called=true;throw Error("unexpected_fetch");}}),/ambiguous_oauth_response/);
+ assert.equal(called,false);
+});
