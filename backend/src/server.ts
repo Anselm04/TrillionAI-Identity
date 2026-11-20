@@ -328,6 +328,25 @@ async function changeMembership(req: Request,res: Response,remove: boolean) {
 }
 app.patch("/v1/organisations/:id/members/:userId",limiter,guard(),wrap((req,res)=>changeMembership(req,res,false)));
 app.delete("/v1/organisations/:id/members/:userId",limiter,guard(),wrap((req,res)=>changeMembership(req,res,true)));
+// Reads perform membership authorization and data selection in the same SQL statement.
+app.get("/v1/organisations/:id/members",guard(),wrap(async(req,res)=>{
+ const org=z.string().uuid().safeParse(req.params.id);
+ const cursor=z.object({after:z.string().uuid().optional()}).strict().safeParse(req.query);
+ if(!org.success||!cursor.success){res.status(400).json({error:"invalid_query"});return;}
+ const {data,error}=await admin.rpc("identity_list_members",{p_actor:principal(req).uid,p_org:org.data,p_after:cursor.data.after??null});
+ if(error||!data){res.status(503).json({error:"members_unavailable"});return;}
+ if(data.denied===true){res.status(404).json({error:"not_found"});return;}
+ res.json(data);
+}));
+app.get("/v1/organisations/:id/invitations",guard(),wrap(async(req,res)=>{
+ const org=z.string().uuid().safeParse(req.params.id);
+ const cursor=z.object({after:z.string().uuid().optional()}).strict().safeParse(req.query);
+ if(!org.success||!cursor.success){res.status(400).json({error:"invalid_query"});return;}
+ const {data,error}=await admin.rpc("identity_list_invitations",{p_actor:principal(req).uid,p_org:org.data,p_after:cursor.data.after??null});
+ if(error||!data){res.status(503).json({error:"invitations_unavailable"});return;}
+ if(data.denied===true){res.status(404).json({error:"not_found"});return;}
+ res.json(data);
+}));
 app.post("/v1/organisations/:id/invitations", limiter, guard(), wrap(async (req,res)=>{
   const org=z.string().uuid().safeParse(req.params.id);
   const input=z.object({email,role:z.enum(["admin","staff","customer"])}).strict().safeParse(req.body);
