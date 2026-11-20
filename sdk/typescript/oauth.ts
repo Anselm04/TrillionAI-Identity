@@ -107,7 +107,10 @@ export async function exchangeCallback(input: {
   if (!Number.isFinite(t.createdAt) || now < t.createdAt || now - t.createdAt > 10 * 60_000) throw Error("oauth_transaction_expired");
   const callback = new URL(input.callbackUrl);
   const allowed = new URL(t.redirectUri);
-  if (callback.origin !== allowed.origin || callback.pathname !== allowed.pathname) throw Error("redirect_mismatch");
+  if (callback.hash || callback.username || callback.password || callback.origin !== allowed.origin || callback.pathname !== allowed.pathname) throw Error("redirect_mismatch");
+  for (const name of ["state", "code", "error", "error_description", "error_uri"]) {
+    if (allowed.searchParams.has(name)) throw Error("invalid_registered_callback_parameter");
+  }
   // Avoid replacing or silently ignoring query parameters pre-registered on callback.
   for (const [name,value] of allowed.searchParams) {
     if (callback.searchParams.getAll(name).length !== 1 || callback.searchParams.get(name)!==value) throw Error("redirect_mismatch");
