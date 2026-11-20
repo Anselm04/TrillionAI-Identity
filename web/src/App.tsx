@@ -1,3 +1,4 @@
+import { PasswordlessSignIn } from "./PasswordlessSignIn";
 import { DeveloperApplications } from "./DeveloperApplications";
 import { SessionInventory } from "./SessionInventory";
 import { DeletionReadiness } from "./DeletionReadiness";
@@ -180,6 +181,7 @@ export default function App(){
       {page==="signup"?<SignUpForm onSignIn={()=>{setPage("login");setMessage("");}}/>:page==="login"?<LoginForm onForgot={()=>{setPage("forgot");setMessage("");}} onSignUp={()=>{setPage("signup");setMessage("");}}/>:<form onSubmit={requestEmail}>
       <Field label="Email" type="email" value={email} onChange={setEmail}/>
       <button disabled={busy}>{ {login:"Sign in",signup:"Create account",forgot:"Send recovery link",resend:"Resend email"}[page]}</button></form>}
+      {page==="login"&&<PasswordlessSignIn/>}
     </>:
     mfaPending?<section><h2>Two-step verification required</h2><form onSubmit={verifyMfa}>
       <Field label="Six-digit authenticator code" value={code} onChange={setCode}/>
