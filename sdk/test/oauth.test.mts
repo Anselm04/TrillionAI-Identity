@@ -1,0 +1,46 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { webcrypto } from "node:crypto";
+import { beginAuthorization, exchangeCallback } from "../typescript/oauth.ts";
+if (!globalThis.crypto) Object.defineProperty(globalThis,"crypto",{value:webcrypto});
+const issuer="https://example.supabase.co/auth/v1",redirectUri="https://app.example/callback";
+test("creates S256 PKCE request with cryptographic state",async()=>{
+ const {transaction,authorizationUrl}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const url=new URL(authorizationUrl);
+ assert.equal(url.origin,"https://example.supabase.co");
+ assert.equal(url.pathname,"/auth/v1/oauth/authorize");
+ assert.equal(url.searchParams.get("response_type"),"code");
+ assert.equal(url.searchParams.get("code_challenge_method"),"S256");
+ assert.match(url.searchParams.get("code_challenge")??"",/^[A-Za-z0-9_-]{43}$/);
+ assert.match(transaction.verifier,/^[A-Za-z0-9_-]{43}$/);
+ assert.notEqual(transaction.state,transaction.verifier);
+});
+test("rejects state mismatch without contacting token endpoint",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"app",redirectUri});
+ let sent=false;
+ await assert.rejects(exchangeCallback({transaction,callbackUrl:redirectUri+"?code=abc&state=wrong",fetcher:async()=>{sent=true;throw Error("unexpected");}}),/oauth_state_mismatch/);
+ assert.equal(sent,false);
+});
+test("exchanges valid callback using code verifier",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ let called=false;
+ const tokens=await exchangeCallback({transaction,callbackUrl:redirectUri+"?code=short-code&state="+transaction.state,fetcher:async(input,init)=>{
+   called=true;
+   assert.equal(new URL(String(input)).pathname,"/auth/v1/oauth/token");
+   const params=init?.body as URLSearchParams;
+   assert.equal(params.get("grant_type"),"authorization_code");
+   assert.equal(params.get("code_verifier"),transaction.verifier);
+   assert.equal(params.get("redirect_uri"),redirectUri);
+   return new Response(JSON.stringify({access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer"}),{status:200,headers:{"Content-Type":"application/json"}});
+ }});
+ assert.equal(called,true);assert.equal(tokens.access_token,"access");
+});
+test("rejects expired requests and mismatched callback origins",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ await assert.rejects(exchangeCallback({transaction,callbackUrl:redirectUri+"?code=a&state="+transaction.state,now:transaction.createdAt+600001}),/expired/);
+ await assert.rejects(exchangeCallback({transaction,callbackUrl:"https://evil.example/callback?code=a&state="+transaction.state}),/redirect_mismatch/);
+});
+test("rejects noncanonical or non-TLS callbacks",async()=>{
+ await assert.rejects(beginAuthorization({issuer,clientId:"app",redirectUri:"http://evil.example/callback"}),/https_required/);
+ await assert.rejects(beginAuthorization({issuer,clientId:"app",redirectUri:"https://app.example/callback#frag"}),/invalid_callback/);
+});
