@@ -222,6 +222,14 @@ app.post("/account/billing/checkout",limiter,guard(),wrap(async(req,res)=>{
 }));
 // Entitlements are derived from the authenticated customer's current provider state,
 // never from a checkout redirect or a webhook receipt alone.
+app.get("/account/deletion-readiness",guard(),wrap(async(req,res)=>{
+ const p=principal(req);
+ if(p.role!=="customer"){res.status(403).json({error:"privileged_account"});return;}
+ const {data,error}=await admin.rpc("identity_deletion_conflicts",{p_user:p.uid});
+ if(error||!Array.isArray(data)){res.status(503).json({error:"ownership_check_unavailable"});return;}
+ const subscriptions=hooks.listSubscriptions?await hooks.listSubscriptions(p.uid):null;
+ res.json({ownershipConflicts:data,billingConnected:subscriptions!==null,storeAcknowledgementRequired:subscriptions===null?null:storeSubscriptionsRequireAcknowledgement(subscriptions),canRequestDeletion:data.length===0&&subscriptions!==null&&Boolean(hooks.deleteUserData&&hooks.cancelSubscription)});
+}));
 app.get("/account/entitlements",guard(),wrap(async(req,res)=>{
  if(!hooks.listSubscriptions){res.status(503).json({error:"billing_not_connected"});return;}
  const subscriptions=await hooks.listSubscriptions(principal(req).uid);
