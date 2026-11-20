@@ -1,3 +1,4 @@
+import 'service_credentials.dart';
 import 'package:flutter/material.dart';
 import 'identity_api.dart';
 
@@ -56,6 +57,9 @@ class _DeveloperApplicationsState extends State<DeveloperApplications> {
       TextField(controller:redirects,enabled:!busy,maxLines:4,decoration:const InputDecoration(labelText:'HTTPS callback URLs (one per line)')),
       ElevatedButton(onPressed:busy?null:()=>run(register),child:const Text('Register application')),
       for(final c in clients) Card(child:ListTile(title:Text(c['name'].toString()),subtitle:Text('${c['id']}\n${c['client_type']} — ${c['revoked_at']==null?'Registered':'Revoked'}\n${(c['redirect_uris'] as List).join('\n')}'),trailing:c['revoked_at']!=null?null:TextButton(onPressed:busy?null:()async {final id=org;final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Revoke registration?'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),TextButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Revoke'))]));if(ok==true&&mounted&&id!=null&&org==id)await run(()=>revoke(id,c['id'] as String));},child:const Text('Revoke')))),
+      for(final c in clients)
+        if(c['client_type']=='confidential'&&c['revoked_at']==null)
+          ServiceCredentials(key:ValueKey('service:${org!}:${c['id']}'),api:widget.api,organisationId:org!,clientId:c['id'] as String),
       if(cursor!=null) OutlinedButton(onPressed:busy?null:()=>run(()=>load(org!,after:cursor)),child:const Text('Load more')),
     ],
     if(message.isNotEmpty) Text(message),
