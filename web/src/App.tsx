@@ -1,3 +1,4 @@
+import { DeletionReadiness } from "./DeletionReadiness";
 import { BillingCheckout } from "./BillingCheckout";
 import { TeamAdministration } from "./TeamAdministration";
 import { OrganisationInvitations } from "./OrganisationInvitations";
@@ -221,7 +222,7 @@ export default function App(){
         {subscriptions?.map(s=><div key={s.id} className="box"><b>{s.plan}</b> — {s.amountLabel}<p>{s.status==="cancelled"?"Cancelled":"Renews "+(s.renewsAt??"unknown")}</p>
           {s.status!=="cancelled"&&(s.store==="direct"?<button onClick={()=>cancelSubscription(s)}>Cancel subscription</button>:<p>Manage through {s.store}: {s.manageUrl&&<a href={s.manageUrl}>Subscription settings</a>}</p>)}</div>)}</section>
       <section><h2>Your data</h2><button onClick={exportData}>Export data</button></section>
-      <section><h2>Delete account</h2><p>Permanent deletion must first verify that connected subscriptions are cancelled and product data is removed.</p>
+      <section><h2>Delete account</h2><DeletionReadiness key={session.user.id}/><p>Permanent deletion must first verify that connected subscriptions are cancelled and product data is removed.</p>
         <button className="danger" onClick={deleteAccount}>Delete my account</button></section>
     </>}
   </main>;
