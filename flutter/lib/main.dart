@@ -49,6 +49,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   String? qr;
   String? secret;
   List<dynamic>? subscriptions;
+  List<Map<String,dynamic>>? accountSessions;
 
   @override
   void initState() {
@@ -57,7 +58,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
       if (state.event == AuthChangeEvent.passwordRecovery) page = 'reset';
       if (state.event == AuthChangeEvent.signedOut) {
         page = 'signin'; needsMfa = false; factorId = null; accountRole = null;
-        enrollId = null; qr = null; secret = null; subscriptions = null;
+        enrollId = null; qr = null; secret = null; subscriptions = null; accountSessions = null;
         for (final controller in [password,currentPassword,confirm,code,displayName,newEmail,deletePassword,deleteConfirmation]) { controller.clear(); }
       }
       if (mounted) setState(() {});
@@ -314,14 +315,49 @@ class _IdentityScreenState extends State<IdentityScreen> {
     if (approved != true || !mounted) return;
     await supabase.auth.signOut(scope: scope);
     if (scope == SignOutScope.others && mounted) {
-      setState(() => message = 'Other sessions signed out.');
+      setState(() { accountSessions = null; message = 'Other sessions signed out.'; });
     }
+  });
+
+  Future<void> loadAccountSessions() => perform(() async {
+    final userId = supabase.auth.currentUser?.id;
+    final result = await api.request('GET', '/account/sessions');
+    final rows = result['sessions'];
+    if (rows is! List) throw StateError('Invalid session response.');
+    if (!mounted || userId == null || supabase.auth.currentUser?.id != userId) return;
+    setState(() => accountSessions = rows.map((row) => Map<String,dynamic>.from(row as Map)).toList());
+  });
+
+  Future<void> revokeAccountSession(String id) => perform(() async {
+    final userId = supabase.auth.currentUser?.id;
+    final approved = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(title: const Text('Revoke this session?'), actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Revoke')),
+      ]));
+    if (approved != true || !mounted || userId == null || supabase.auth.currentUser?.id != userId) return;
+    await api.request('DELETE', '/account/sessions/' + Uri.encodeComponent(id));
+    if (!mounted || supabase.auth.currentUser?.id != userId) return;
+    setState(() {
+      accountSessions?.removeWhere((row) => row['id'] == id);
+      message = 'Session revoked.';
+    });
   });
 
   Widget accountForm() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     Text(supabase.auth.currentUser?.email ?? 'Account'),
     const Divider(),
     const Text('Session management'),
+    OutlinedButton(onPressed: busy ? null : loadAccountSessions,
+      child: const Text('View or refresh sessions')),
+    if (accountSessions != null)
+      for (final row in accountSessions!)
+        ListTile(
+          title: Text(row['current_session'] == true ? 'Current session' : 'Other session'),
+          subtitle: Text(DateTime.tryParse(row['created_at']?.toString() ?? '')?.toLocal().toString() ?? 'Creation time unavailable'),
+          trailing: row['current_session'] == true || row['id'] is! String ? null :
+            TextButton(onPressed: busy ? null : () => revokeAccountSession(row['id'] as String), child: const Text('Revoke')),
+        ),
     OutlinedButton(onPressed: busy ? null : () => revokeSessions(SignOutScope.others),
       child: const Text('Sign out other devices')),
     OutlinedButton(onPressed: busy ? null : () => revokeSessions(SignOutScope.global),
