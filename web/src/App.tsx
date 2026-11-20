@@ -1,3 +1,4 @@
+import { BillingCheckout } from "./BillingCheckout";
 import { TeamAdministration } from "./TeamAdministration";
 import { OrganisationInvitations } from "./OrganisationInvitations";
 import { useEffect, useState, type FormEvent } from "react";
@@ -215,7 +216,7 @@ export default function App(){
         <Field label="New password (12+ characters)" type="password" value={password} onChange={setPassword}/>
         <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm}/>
         <button disabled={busy}>Update password</button></form></section>
-      <section><h2>Subscription management</h2><button onClick={loadSubscriptions}>View subscriptions</button>
+      <section><h2>Subscription management</h2><BillingCheckout key={"billing:"+session.user.id}/><button onClick={loadSubscriptions}>View subscriptions</button>
         {subscriptions?.length===0&&<p>No subscriptions reported.</p>}
         {subscriptions?.map(s=><div key={s.id} className="box"><b>{s.plan}</b> — {s.amountLabel}<p>{s.status==="cancelled"?"Cancelled":"Renews "+(s.renewsAt??"unknown")}</p>
           {s.status!=="cancelled"&&(s.store==="direct"?<button onClick={()=>cancelSubscription(s)}>Cancel subscription</button>:<p>Manage through {s.store}: {s.manageUrl&&<a href={s.manageUrl}>Subscription settings</a>}</p>)}</div>)}</section>
