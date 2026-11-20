@@ -1,3 +1,4 @@
+import { DeveloperApplications } from "./DeveloperApplications";
 import { SessionInventory } from "./SessionInventory";
 import { DeletionReadiness } from "./DeletionReadiness";
 import { BillingCheckout } from "./BillingCheckout";
@@ -192,6 +193,7 @@ export default function App(){
         <p className="muted">Revoked sessions are rejected by the Identity API. Other services may accept existing tokens until expiry.</p>
       </section>
       <TeamAdministration key={"team:"+session.user.id}/>
+      <DeveloperApplications key={"clients:"+session.user.id}/>
       <OrganisationInvitations key={session.user.id}/>
       <section><h2>Account security</h2><p>Role: {profile?.role ?? "customer"}</p>
         {!factor && !enrolling && <button onClick={setupMfa}>Enable authenticator MFA</button>}

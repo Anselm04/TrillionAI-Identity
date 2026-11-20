@@ -1,3 +1,4 @@
+import 'developer_applications.dart';
 import 'team_administration.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -350,6 +351,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
     Text(supabase.auth.currentUser?.email ?? 'Account'),
     const Divider(),
     TeamAdministration(key: ValueKey('team:'+ (supabase.auth.currentUser?.id ?? '')), api: api),
+    DeveloperApplications(key: ValueKey('clients:'+ (supabase.auth.currentUser?.id ?? '')), api: api),
     const Divider(),
     OrganisationInvitations(key: ValueKey(supabase.auth.currentUser?.id), api: api),
     const Divider(),
