@@ -1,3 +1,4 @@
+import { issueInvitation, invitationDigest } from "./invitations.js";
 import { collectPages } from "./pagination.js";
 import express, { type Request, type Response, type NextFunction } from "express";
 import helmet from "helmet";
@@ -327,6 +328,35 @@ async function changeMembership(req: Request,res: Response,remove: boolean) {
 }
 app.patch("/v1/organisations/:id/members/:userId",limiter,guard(),wrap((req,res)=>changeMembership(req,res,false)));
 app.delete("/v1/organisations/:id/members/:userId",limiter,guard(),wrap((req,res)=>changeMembership(req,res,true)));
+app.post("/v1/organisations/:id/invitations", limiter, guard(), wrap(async (req,res)=>{
+  const org=z.string().uuid().safeParse(req.params.id);
+  const input=z.object({email,role:z.enum(["admin","staff","customer"])}).strict().safeParse(req.body);
+  if(!org.success||!input.success){res.status(400).json({error:"invalid_invitation"});return;}
+  const invite=issueInvitation();
+  const {data,error}=await admin.rpc("identity_issue_invitation",{p_actor:principal(req).uid,p_org:org.data,p_email:input.data.email,p_role:input.data.role,p_digest:invite.digest,p_expires:invite.expiresAt});
+  if(error){res.status(503).json({error:"invitation_unavailable"});return;}
+  if(typeof data!=="string"){res.status(404).json({error:"not_found"});return;}
+  await audit("invitation_created",principal(req).uid);
+  res.status(201).json({id:data,token:invite.token,expiresAt:invite.expiresAt});
+}));
+app.post("/v1/invitations/accept",limiter,guard(),wrap(async(req,res)=>{
+  const input=z.object({token:z.string().regex(/^[A-Za-z0-9_-]{43}$/)}).strict().safeParse(req.body);
+  if(!input.success){res.status(400).json({error:"invalid_invitation"});return;}
+  const p=principal(req);
+  const {data,error}=await admin.rpc("identity_accept_invitation",{p_actor:p.uid,p_email:p.email,p_digest:invitationDigest(input.data.token)});
+  if(error){res.status(503).json({error:"invitation_unavailable"});return;}
+  if(typeof data!=="string"){res.status(404).json({error:"invitation_not_available"});return;}
+  res.json({organisation_id:data});
+}));
+app.delete("/v1/organisations/:id/invitations/:inviteId",limiter,guard(),wrap(async(req,res)=>{
+  const ids=z.object({id:z.string().uuid(),inviteId:z.string().uuid()}).safeParse(req.params);
+  if(!ids.success){res.status(400).json({error:"invalid_invitation"});return;}
+  const {data,error}=await admin.rpc("identity_revoke_invitation",{p_actor:principal(req).uid,p_org:ids.data.id,p_invite:ids.data.inviteId});
+  if(error){res.status(503).json({error:"invitation_unavailable"});return;}
+  if(data!==true){res.status(404).json({error:"not_found"});return;}
+  await audit("invitation_revoked",principal(req).uid);
+  res.status(204).end();
+}));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: "internal_error" });
