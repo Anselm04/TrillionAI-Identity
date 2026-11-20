@@ -27,3 +27,6 @@ Inspected Appwrite Account/Get.php blob ebfce0fbf1fd8b7ad9ef5b57c573d88e14573707
 
 ## Native export pagination
 Appwrite Teams/Http/Memberships/XList.php blob 18b3698ebf7fbb67644ad42a1ba5b010362ec2b7 (BSD-3-Clause) inspected for mandatory tenant filters and cursor pagination. Adapted keyset pagination using unique organisation IDs within the caller's memberships; no PHP copied. Tests cover provider page caps, empty results, repeated cursors and failed reads. Export is not a transactional snapshot during concurrent membership changes.
+
+## Tenant membership mutation
+Inspected Appwrite Memberships/Update.php (1c2d0998c4a2d2c0544027283e07eeb7d94b5932) and Delete.php (e9734dbe9430adaf3a40f54e6d2909e31939720f), BSD-3-Clause. Adapted tenant row lock, tenant-scoped actor/target authorization and last-active-owner rollback using an invoker RPC. Admin cannot manage owners or other admins; invitation acceptance is separate. SQL changes not applied or integration-tested. Account deletion cascade requires additional last-owner protection.

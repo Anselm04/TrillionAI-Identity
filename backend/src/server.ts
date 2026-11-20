@@ -298,6 +298,22 @@ app.get("/v1/organisations/:id", guard(), wrap(async (req, res) => {
   if (!org) { res.status(404).json({ error: "not_found" }); return; }
   res.json({ organisation:org,role });
 }));
+// Tenant mutation authorization is checked again inside the serialized RPC.
+async function changeMembership(req: Request,res: Response,remove: boolean) {
+  const ids=z.object({id:z.string().uuid(),userId:z.string().uuid()}).safeParse(req.params);
+  const body=z.object({role:z.enum(["owner","admin","staff","customer"]),status:z.enum(["active","suspended"])}).strict().safeParse(req.body);
+  if (!ids.success || (!remove && !body.success)) { res.status(400).json({error:"invalid_membership"});return; }
+  const {data,error}=await admin.rpc("identity_change_membership",{
+    p_actor:principal(req).uid,p_org:ids.data.id,p_target:ids.data.userId,
+    p_role:!remove&&body.success?body.data.role:null,p_status:!remove&&body.success?body.data.status:null,p_remove:remove
+  });
+  if(error){res.status(error.code==="23514"?409:503).json({error:error.code==="23514"?"last_active_owner":"membership_change_failed"});return;}
+  if(data==="ok"){res.status(204).end();return;}
+  const status=data==="not_found"?404:data==="forbidden"?403:data==="invitation_pending"?409:400;
+  res.status(status).json({error:data==="not_found"?"not_found":data==="forbidden"?"forbidden":data==="invitation_pending"?"invitation_pending":"invalid_membership"});
+}
+app.patch("/v1/organisations/:id/members/:userId",limiter,guard(),wrap((req,res)=>changeMembership(req,res,false)));
+app.delete("/v1/organisations/:id/members/:userId",limiter,guard(),wrap((req,res)=>changeMembership(req,res,true)));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: "internal_error" });

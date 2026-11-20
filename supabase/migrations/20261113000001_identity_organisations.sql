@@ -36,3 +36,40 @@ end;
 $$;
 revoke all on function public.identity_create_organisation(uuid,text) from public, anon, authenticated;
 grant execute on function public.identity_create_organisation(uuid,text) to service_role;
+
+-- Lock the organisation before checking permission or changing membership.
+create or replace function public.identity_change_membership(
+ p_actor uuid,p_org uuid,p_target uuid,p_role text,p_status text,p_remove boolean
+) returns text language plpgsql security invoker set search_path='' as $$
+declare actor_role text; target_role text; target_status text;
+begin
+ perform 1 from public.identity_organisations where id=p_org for update;
+ if not found then return 'not_found'; end if;
+ select role into actor_role from public.identity_memberships
+ where organisation_id=p_org and user_id=p_actor and status='active';
+ if actor_role is null or actor_role not in ('owner','admin') then return 'not_found'; end if;
+ select role,status into target_role,target_status from public.identity_memberships
+ where organisation_id=p_org and user_id=p_target;
+ if not found then return 'not_found'; end if;
+ if actor_role='admin' and (target_role in ('owner','admin') or
+   (not p_remove and p_role in ('owner','admin'))) then return 'forbidden'; end if;
+ if not p_remove and (p_role is null or p_role not in ('owner','admin','staff','customer')
+  or p_status is null or p_status not in ('active','suspended')) then return 'invalid'; end if;
+ if not p_remove and target_status='invited' then return 'invitation_pending'; end if;
+ if p_remove then
+  delete from public.identity_memberships where organisation_id=p_org and user_id=p_target;
+ else
+  update public.identity_memberships set role=p_role,status=p_status
+    where organisation_id=p_org and user_id=p_target;
+ end if;
+ if not exists(select 1 from public.identity_memberships
+  where organisation_id=p_org and role='owner' and status='active') then
+   raise exception 'last_active_owner' using errcode='23514';
+ end if;
+ insert into public.identity_audit_log(user_id,action)
+ values(p_actor,case when p_remove then 'membership_removed' else 'membership_updated' end);
+ return 'ok';
+end;
+$$;
+revoke all on function public.identity_change_membership(uuid,uuid,uuid,text,text,boolean) from public,anon,authenticated;
+grant execute on function public.identity_change_membership(uuid,uuid,uuid,text,text,boolean) to service_role;
