@@ -183,14 +183,19 @@ app.post("/account/subscriptions/:id/cancel", limiter, guard(), wrap(async (req,
   }
 }));
 app.get("/account/export", guard(), wrap(async (req, res) => {
-  if (!hooks.exportUserData) { res.status(501).json({ error: "data_export_not_connected" }); return; }
   const p = principal(req);
   const { data, error } = await admin.from("identity_profiles").select("display_name").eq("user_id", p.uid).maybeSingle();
   if (error) { res.status(503).json({ error: "profile_export_unavailable" }); return; }
-  const appData = await hooks.exportUserData(p.uid);
+  const memberships = await admin.from("identity_memberships")
+    .select("organisation_id,role,status,created_at").eq("user_id", p.uid)
+    .order("organisation_id");
+  if (memberships.error) { res.status(503).json({ error: "membership_export_unavailable" }); return; }
+  const appData = hooks.exportUserData ? await hooks.exportUserData(p.uid) : {};
+  const ownMemberships = memberships.data ?? [];
+  if (ownMemberships.length >= 1000) { res.status(503).json({ error: "export_requires_pagination" }); return; }
   await audit("data_exported", p.uid);
   res.setHeader("Content-Disposition", 'attachment; filename="my-data.json"');
-  res.json({ account: { id: p.uid, email: p.email }, profile: data ?? {}, app: appData });
+  res.json({ account: { id: p.uid, email: p.email }, profile: data ?? {}, memberships: ownMemberships, app: appData });
 }));
 app.delete("/account", limiter, guard(), wrap(async (req, res) => {
   const p = principal(req);
@@ -234,6 +239,13 @@ app.delete("/account", limiter, guard(), wrap(async (req, res) => {
   }
   // Apple/Google recurring billing must be cancelled in the relevant store.
   // The user may explicitly acknowledge that risk without losing deletion rights.
+  // Revoke other sessions before deletion while keeping the current session
+  // available for retries if the provider or cleanup fails.
+  const otherSessions = await fetch(`${config.SUPABASE_URL}/auth/v1/logout?scope=others`, {
+    method: "POST", headers: { apikey: config.SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${p.token}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!otherSessions.ok) { res.status(502).json({ error: "session_revoke_unconfirmed" }); return; }
   await hooks.deleteUserData(p.uid);
   const { error } = await admin.auth.admin.deleteUser(p.uid);
   if (error) { res.status(502).json({ error: "identity_deletion_not_confirmed" }); return; }
