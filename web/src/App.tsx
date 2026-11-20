@@ -79,7 +79,12 @@ export default function App(){
     }
     setMessage("If this address is eligible, an email has been requested.");
   });}
-  async function signOut(){await submit(async()=>{const {error}=await supabase.auth.signOut({scope:"global"});if(error)throw Error(error.message);setProfile(null);});}
+  async function signOut(scope:"local"|"global"|"others"="local"){await submit(async()=>{
+    const {error}=await supabase.auth.signOut({scope});
+    if(error)throw Error(error.message);
+    if(scope==="others"){setMessage("Other sessions signed out. This session remains active.");return;}
+    setProfile(null);
+  });}
   async function verifyMfa(e:FormEvent){e.preventDefault();if(!factor)return;await submit(async()=>{
     const {error}=await supabase.auth.mfa.challengeAndVerify({factorId:factor,code:code.trim()});
     if(error)throw Error(error.message);
@@ -171,9 +176,14 @@ export default function App(){
     </>:
     mfaPending?<section><h2>Two-step verification required</h2><form onSubmit={verifyMfa}>
       <Field label="Six-digit authenticator code" value={code} onChange={setCode}/>
-      <button disabled={busy}>Verify</button></form><button className="secondary" onClick={signOut}>Sign out</button></section>:
-    !profile?<section><p role="status">Checking verified account access.</p><button onClick={()=>void reload()}>Retry</button><button className="secondary" onClick={signOut}>Sign out</button></section>:
-    <><p>Signed in as {session.user.email}</p><button className="secondary" onClick={signOut}>Sign out</button>
+      <button disabled={busy}>Verify</button></form><button className="secondary" onClick={()=>void signOut()}>Sign out</button></section>:
+    !profile?<section><p role="status">Checking verified account access.</p><button onClick={()=>void reload()}>Retry</button><button className="secondary" onClick={()=>void signOut()}>Sign out</button></section>:
+    <><p>Signed in as {session.user.email}</p><button className="secondary" onClick={()=>void signOut()}>Sign out</button>
+      <section><h2>Session management</h2>
+        <button disabled={busy} onClick={()=>{if(window.confirm("Sign out all other devices?"))void signOut("others");}}>Sign out other devices</button>
+        <button disabled={busy} onClick={()=>{if(window.confirm("Sign out every device, including this one?"))void signOut("global");}}>Sign out all devices</button>
+        <p className="muted">Revoked devices cannot refresh their sessions. Existing access tokens may remain valid until expiry.</p>
+      </section>
       <section><h2>Account security</h2><p>Role: {profile?.role ?? "customer"}</p>
         {!factor && !enrolling && <button onClick={setupMfa}>Enable authenticator MFA</button>}
         {enrolling && <form onSubmit={confirmMfa}><p>Scan this QR code in your authenticator app or enter the key:</p>
