@@ -66,4 +66,37 @@ end;
 $invite$;
 revoke all on function public.identity_revoke_invitation(uuid,uuid,uuid) from public,anon,authenticated;
 grant execute on function public.identity_revoke_invitation(uuid,uuid,uuid) to service_role;
+-- Return at most 100 records, plus a cursor when there are further records.
+-- Never return invitation token digests.
+create or replace function public.identity_list_members(p_actor uuid,p_org uuid,p_after uuid)
+returns jsonb language sql stable security invoker set search_path='' as $read$
+ with allowed as (
+  select 1 from public.identity_memberships where organisation_id=p_org and user_id=p_actor and status='active' and role in ('owner','admin','staff')
+ ), page as (
+  select m.user_id,m.role,m.status,m.created_at from public.identity_memberships m
+  where m.organisation_id=p_org and (p_after is null or m.user_id>p_after) and exists(select 1 from allowed)
+  order by m.user_id limit 101
+ ), visible as (select * from page order by user_id limit 100)
+ select case when not exists(select 1 from allowed) then jsonb_build_object('denied',true)
+ else jsonb_build_object('members',coalesce((select jsonb_agg(to_jsonb(v) order by v.user_id) from visible v),'[]'::jsonb),
+ 'next_cursor',case when (select count(*) from page)>100 then (select user_id from visible order by user_id desc limit 1) else null end) end;
+$read$;
+revoke all on function public.identity_list_members(uuid,uuid,uuid) from public,anon,authenticated;
+grant execute on function public.identity_list_members(uuid,uuid,uuid) to service_role;
+create or replace function public.identity_list_invitations(p_actor uuid,p_org uuid,p_after uuid)
+returns jsonb language sql stable security invoker set search_path='' as $read$
+ with allowed as (
+  select role from public.identity_memberships where organisation_id=p_org and user_id=p_actor and status='active' and role in ('owner','admin')
+ ), page as (
+  select i.id,i.recipient_email,i.role,i.created_at,i.expires_at,i.accepted_at,i.revoked_at
+  from public.identity_invitations i where i.organisation_id=p_org and (p_after is null or i.id>p_after)
+  and exists(select 1 from allowed a where a.role='owner' or i.role<>'admin')
+  order by i.id limit 101
+ ), visible as (select * from page order by id limit 100)
+ select case when not exists(select 1 from allowed) then jsonb_build_object('denied',true)
+ else jsonb_build_object('invitations',coalesce((select jsonb_agg(to_jsonb(v) order by v.id) from visible v),'[]'::jsonb),
+ 'next_cursor',case when (select count(*) from page)>100 then (select id from visible order by id desc limit 1) else null end) end;
+$read$;
+revoke all on function public.identity_list_invitations(uuid,uuid,uuid) from public,anon,authenticated;
+grant execute on function public.identity_list_invitations(uuid,uuid,uuid) to service_role;
 commit;
