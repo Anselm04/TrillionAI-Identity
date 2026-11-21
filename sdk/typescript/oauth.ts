@@ -158,6 +158,12 @@ export async function exchangeCallback(input: {
   }
   if (callback.searchParams.getAll("state").length !== 1 ||
       callback.searchParams.get("state") !== t.state) throw Error("oauth_state_mismatch");
+  // Error metadata without an OAuth error is an ambiguous authorization response.
+  if (!callback.searchParams.has("error") &&
+      (callback.searchParams.has("error_description") || callback.searchParams.has("error_uri")))
+    throw Error("orphan_oauth_error_metadata");
+  if (callback.searchParams.has("error") && !callback.searchParams.get("error"))
+    throw Error("invalid_oauth_error");
   if (callback.searchParams.has("error") && callback.searchParams.has("code")) throw Error("ambiguous_oauth_response");
   if (callback.searchParams.has("error")) throw Error("oauth_authorization_denied");
   const codes = callback.searchParams.getAll("code");
