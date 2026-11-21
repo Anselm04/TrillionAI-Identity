@@ -101,7 +101,9 @@ function oauthResponse(data: unknown): OAuthTokens {
       typeof t.expires_in !== "number" || !Number.isSafeInteger(t.expires_in) || t.expires_in <= 0 ||
       typeof t.token_type !== "string" || t.token_type.toLowerCase() !== "bearer") throw Error("invalid_token_response");
   if (t.id_token !== undefined && (typeof t.id_token !== "string" || !t.id_token)) throw Error("invalid_id_token");
-  if (t.scope !== undefined && typeof t.scope !== "string") throw Error("invalid_scope");
+  // Scope returned by the issuer must obey the same RFC 6749 token grammar.
+  if (t.scope !== undefined && (typeof t.scope !== "string" ||
+      !/^[\\x21\\x23-\\x5B\\x5D-\\x7E]+(?: [\\x21\\x23-\\x5B\\x5D-\\x7E]+)*$/.test(t.scope))) throw Error("invalid_scope");
   return {access_token:t.access_token,refresh_token:t.refresh_token,
     token_type:"bearer",expires_in:t.expires_in,
     ...(typeof t.id_token==="string"?{id_token:t.id_token}:{}),
