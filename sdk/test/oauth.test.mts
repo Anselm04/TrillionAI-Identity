@@ -272,3 +272,16 @@ test("rejects empty OIDC ID token in successful token response",async()=>{
   }),{status:200})
  }),/invalid_id_token/);
 });
+
+test("rejects fractional, unsafe and nonpositive OAuth token lifetimes",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const expires_in of [0,-1,0.5,1.5,Number.MAX_SAFE_INTEGER+1]){
+  await assert.rejects(exchangeCallback({
+   transaction,callbackUrl,
+   fetcher:async()=>new Response(JSON.stringify({
+    access_token:"access",refresh_token:"refresh",expires_in,token_type:"bearer"
+   }),{status:200})
+  }),/invalid_token_response/);
+ }
+});
