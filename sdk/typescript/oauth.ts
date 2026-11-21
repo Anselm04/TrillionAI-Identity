@@ -175,7 +175,7 @@ export async function exchangeCallback(input: {
   if (callback.searchParams.has("error") && callback.searchParams.has("code")) throw Error("ambiguous_oauth_response");
   if (callback.searchParams.has("error")) throw Error("oauth_authorization_denied");
   const codes = callback.searchParams.getAll("code");
-  if (codes.length !== 1 || !codes[0]) throw Error("missing_authorization_code");
+  if (codes.length !== 1 || !codes[0] || !/^[\x21-\x7E]+$/.test(codes[0])) throw Error("invalid_authorization_code");
   const issuer = issuerUrl(t.issuer);
   const tokenEndpoint = new URL(issuer.href.replace(/\/$/, "") + "/oauth/token");
   const response = await (input.fetcher ?? fetch)(tokenEndpoint, {
