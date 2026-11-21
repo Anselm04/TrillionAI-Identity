@@ -240,3 +240,23 @@ test("rejects absent persisted OAuth transaction before any network request",asy
  }),/invalid_oauth_transaction/);
  assert.equal(called,false);
 });
+
+test("rejects non-string restored transaction fields before token exchange",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const changed of [
+  {...transaction,state:42},
+  {...transaction,verifier:[]},
+  {...transaction,clientId:{toString:()=> "public-app"}},
+  {...transaction,issuer:null},
+  {...transaction,redirectUri:[]},
+  {...transaction,createdAt:"0"},
+ ]){
+  let called=false;
+  await assert.rejects(exchangeCallback({
+   transaction:changed as unknown as typeof transaction,callbackUrl,
+   fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+  }),/invalid_oauth_transaction/);
+  assert.equal(called,false);
+ }
+});
