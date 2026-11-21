@@ -188,3 +188,19 @@ test("rejects duplicate registered callback keys in restored transactions withou
  }),/duplicate_registered_callback_parameter/);
  assert.equal(called,false);
 });
+
+test("rejects orphaned OAuth error metadata and empty errors before exchange",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ for(const query of [
+  "code=valid&error_description=forged",
+  "code=valid&error_uri=https%3A%2F%2Fexample.com",
+  "error=",
+ ]) {
+  let called=false;
+  await assert.rejects(exchangeCallback({
+   transaction,callbackUrl:redirectUri+"?"+query+"&state="+transaction.state,
+   fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+  }),/orphan_oauth_error_metadata|invalid_oauth_error/);
+  assert.equal(called,false);
+ }
+});
