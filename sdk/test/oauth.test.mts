@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
-import { beginAuthorization, exchangeCallback } from "../typescript/oauth.ts";
+import { beginAuthorization, exchangeCallback, exchangeTrustedCallback } from "../typescript/oauth.ts";
 if (!globalThis.crypto) Object.defineProperty(globalThis,"crypto",{value:webcrypto});
 const issuer="https://example.supabase.co/auth/v1",redirectUri="https://app.example/callback";
 test("creates S256 PKCE request with cryptographic state",async()=>{
@@ -334,4 +334,45 @@ test("rejects invalid persisted timestamps and unsafe callback clocks before exc
   }),/oauth_transaction_expired/);
   assert.equal(called,false);
  }
+});
+
+test("trusted-registration callback helper rejects substituted issuer, client and redirect without fetch",async()=>{
+ const registration={issuer,clientId:"public-app",redirectUri};
+ const {transaction}=await beginAuthorization(registration);
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const altered of [
+  {...transaction,issuer:"https://attacker.example/auth/v1"},
+  {...transaction,clientId:"attacker-client"},
+  {...transaction,redirectUri:"https://attacker.example/callback"}
+ ]){
+  let called=false;
+  await assert.rejects(exchangeTrustedCallback({
+   registration,transaction:altered,callbackUrl,
+   fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+  }),/oauth_issuer_mismatch|oauth_client_mismatch|oauth_redirect_mismatch/);
+  assert.equal(called,false);
+ }
+ let exchanges=0;
+ const tokens=await exchangeTrustedCallback({
+  registration,transaction,callbackUrl,
+  fetcher:async()=>{
+   exchanges++;
+   return new Response(JSON.stringify({
+    access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer"
+   }),{status:200});
+  }
+ });
+ assert.equal(exchanges,1);
+ assert.equal(tokens.access_token,"access");
+});
+
+test("trusted-registration callback helper rejects missing configuration without fetch",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ let called=false;
+ await assert.rejects(exchangeTrustedCallback({
+  registration:null as unknown as {issuer:string;clientId:string;redirectUri:string},
+  transaction,callbackUrl:redirectUri+"?code=valid&state="+transaction.state,
+  fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+ }),/invalid_trusted_oauth_registration/);
+ assert.equal(called,false);
 });
