@@ -64,6 +64,14 @@ export async function beginAuthorization(options: {
   const issuer = issuerUrl(options.issuer);
   const callback = callbackUri(options.redirectUri);
   if (callback.href !== options.redirectUri) throw Error("noncanonical_redirect_uri");
+  // Reject reserved OAuth response keys at registration, not only at exchange.
+  // Otherwise an invalid redirect could be distributed to authorization servers.
+  for (const name of ["state", "code", "error", "error_description", "error_uri"]) {
+    if (callback.searchParams.has(name)) throw Error("invalid_registered_callback_parameter");
+  }
+  for (const name of new Set(callback.searchParams.keys())) {
+    if (callback.searchParams.getAll(name).length !== 1) throw Error("duplicate_registered_callback_parameter");
+  }
   if (!globalThis.crypto?.subtle) throw Error("webcrypto_unavailable");
   const verifier = randomString();
   const state = randomString();
