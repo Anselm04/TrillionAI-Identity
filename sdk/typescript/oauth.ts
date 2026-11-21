@@ -103,6 +103,13 @@ export async function exchangeCallback(input: {
   now?: number;
 }): Promise<OAuthTokens> {
   const {transaction:t} = input;
+  // Persisted redirect transactions are untrusted on restoration.
+  // Reject malformed state, verifier and client metadata before network I/O.
+  if (!/^[A-Za-z0-9_-]{43,128}$/.test(t.state) ||
+      !/^[A-Za-z0-9_-]{43,128}$/.test(t.verifier) ||
+      !/^[a-zA-Z0-9._~-]{1,128}$/.test(t.clientId)) throw Error("invalid_oauth_transaction");
+  const registeredCallback = callbackUri(t.redirectUri);
+  if (registeredCallback.href !== t.redirectUri) throw Error("invalid_oauth_transaction");
   const now = input.now ?? Date.now();
   if (!Number.isFinite(t.createdAt) || now < t.createdAt || now - t.createdAt > 10 * 60_000) throw Error("oauth_transaction_expired");
   const callback = new URL(input.callbackUrl);
