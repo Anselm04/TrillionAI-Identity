@@ -126,3 +126,22 @@ test("rejects restored callback substitution against trusted host configuration"
  }),/oauth_redirect_mismatch/);
  assert.equal(called,false);
 });
+
+test("rejects reserved and duplicate registered callback parameters before authorization",async()=>{
+ for(const redirect of [
+  redirectUri+"?state=fixed",
+  redirectUri+"?code=preloaded",
+  redirectUri+"?error=access_denied",
+  redirectUri+"?error_description=preloaded",
+  redirectUri+"?error_uri=https%3A%2F%2Fexample.com",
+ ]) {
+  await assert.rejects(beginAuthorization({issuer,clientId:"public-app",redirectUri:redirect}),/invalid_registered_callback_parameter/);
+ }
+ await assert.rejects(beginAuthorization({
+  issuer,clientId:"public-app",redirectUri:redirectUri+"?tenant=a&tenant=b"
+ }),/duplicate_registered_callback_parameter/);
+ const valid=await beginAuthorization({
+  issuer,clientId:"public-app",redirectUri:redirectUri+"?tenant=a"
+ });
+ assert.equal(new URL(valid.authorizationUrl).searchParams.get("redirect_uri"),redirectUri+"?tenant=a");
+});
