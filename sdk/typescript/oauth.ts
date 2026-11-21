@@ -217,3 +217,40 @@ export async function exchangeTrustedCallback(input: {
     now: input.now,
   });
 }
+
+/**
+ * Consume a tab-scoped redirect transaction exactly once before token exchange.
+ * The host should pass sessionStorage (not localStorage) and a fixed key.
+ * This is an application-level replay guard, not a substitute for server-side
+ * one-time authorization codes or trusted registration configuration.
+ */
+export async function exchangeStoredCallback(input: {
+  callbackUrl: string;
+  registration: Readonly<{ issuer: string; clientId: string; redirectUri: string }>;
+  storage: Pick<Storage, "getItem" | "removeItem">;
+  storageKey: string;
+  fetcher?: typeof fetch;
+  now?: number;
+}): Promise<OAuthTokens> {
+  if (!input.storage || typeof input.storage.getItem !== "function" ||
+      typeof input.storage.removeItem !== "function" ||
+      typeof input.storageKey !== "string" || !input.storageKey ||
+      input.storageKey.length > 256) throw Error("invalid_oauth_storage");
+  // Consume before parsing, validating, or performing any network request.
+  const raw = input.storage.getItem(input.storageKey);
+  input.storage.removeItem(input.storageKey);
+  if (raw === null) throw Error("missing_oauth_transaction");
+  let transaction: OAuthTransaction;
+  try {
+    transaction = JSON.parse(raw) as OAuthTransaction;
+  } catch {
+    throw Error("invalid_oauth_transaction");
+  }
+  return exchangeTrustedCallback({
+    callbackUrl: input.callbackUrl,
+    transaction,
+    registration: input.registration,
+    fetcher: input.fetcher,
+    now: input.now,
+  });
+}
