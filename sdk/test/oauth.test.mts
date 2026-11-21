@@ -394,3 +394,16 @@ test("rejects whitespace-only OAuth tokens returned by issuer",async()=>{
   }),/invalid_token_response|invalid_id_token/);
  }
 });
+
+test("rejects blank or control-character authorization codes without token exchange",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ for(const code of ["", " ", "abc def", "abc\nxyz", "abc\txyz", "\u0000"]){
+  let called=false;
+  await assert.rejects(exchangeCallback({
+   transaction,
+   callbackUrl:redirectUri+"?code="+encodeURIComponent(code)+"&state="+transaction.state,
+   fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+  }),/invalid_authorization_code/);
+  assert.equal(called,false);
+ }
+});
