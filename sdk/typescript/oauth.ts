@@ -72,7 +72,10 @@ export async function beginAuthorization(options: {
   for (const name of new Set(callback.searchParams.keys())) {
     if (callback.searchParams.getAll(name).length !== 1) throw Error("duplicate_registered_callback_parameter");
   }
-  // Scope is a space-delimited list of printable OAuth scope tokens (RFC 6749 §3.3).\n  // Reject empty, control-character and malformed scopes before redirect.\n  const scope = options.scope ?? "openid email profile";\n  if (!/^[\\x21\\x23-\\x5B\\x5D-\\x7E]+(?: [\\x21\\x23-\\x5B\\x5D-\\x7E]+)*$/.test(scope)) throw Error("invalid_oauth_scope");\n  if (!globalThis.crypto?.subtle) throw Error("webcrypto_unavailable");
+  // RFC 6749 section 3.3: scope tokens exclude spaces, quotes and backslashes.
+  const scope = options.scope ?? "openid email profile";
+  if (!/^[\x21\x23-\x5B\x5D-\x7E]+(?: [\x21\x23-\x5B\x5D-\x7E]+)*$/.test(scope)) throw Error("invalid_oauth_scope");
+  if (!globalThis.crypto?.subtle) throw Error("webcrypto_unavailable");
   const verifier = randomString();
   const state = randomString();
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
