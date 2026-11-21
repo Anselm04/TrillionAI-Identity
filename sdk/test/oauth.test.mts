@@ -82,3 +82,18 @@ test("rejects simultaneous OAuth code and error before token exchange",async()=>
  await assert.rejects(exchangeCallback({transaction,callbackUrl:redirectUri+"?code=valid&error=access_denied&state="+transaction.state,fetcher:async()=>{called=true;throw Error("unexpected_fetch");}}),/ambiguous_oauth_response/);
  assert.equal(called,false);
 });
+
+test("rejects tampered persisted PKCE transaction before token exchange",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for (const changed of [
+   {...transaction,verifier:"short"},
+   {...transaction,state:"short"},
+   {...transaction,clientId:"bad client"},
+   {...transaction,redirectUri:"http://evil.example/callback"},
+ ]) {
+   let called=false;
+   await assert.rejects(exchangeCallback({transaction:changed,callbackUrl,fetcher:async()=>{called=true;throw Error("unexpected_fetch");}}),/invalid_oauth_transaction|https_required/);
+   assert.equal(called,false);
+ }
+});
