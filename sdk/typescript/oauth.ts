@@ -137,6 +137,11 @@ export async function exchangeCallback(input: {
   for (const name of ["state", "code", "error", "error_description", "error_uri"]) {
     if (allowed.searchParams.has(name)) throw Error("invalid_registered_callback_parameter");
   }
+  // Restored transactions may predate registration-time validation or be tampered with.
+  // Reject duplicate registered keys before any token endpoint request.
+  for (const name of new Set(allowed.searchParams.keys())) {
+    if (allowed.searchParams.getAll(name).length !== 1) throw Error("duplicate_registered_callback_parameter");
+  }
   // Avoid replacing or silently ignoring query parameters pre-registered on callback.
   for (const [name,value] of allowed.searchParams) {
     if (callback.searchParams.getAll(name).length !== 1 || callback.searchParams.get(name)!==value) throw Error("redirect_mismatch");
