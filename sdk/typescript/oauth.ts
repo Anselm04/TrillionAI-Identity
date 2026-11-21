@@ -187,3 +187,33 @@ export async function exchangeCallback(input: {
   if (!response.ok) throw Error("oauth_token_exchange_failed");
   return oauthResponse(await response.json());
 }
+
+/**
+ * Preferred callback entry point for applications with a fixed registration.
+ * The expected issuer, client ID, and redirect URI MUST come from trusted
+ * application configuration, never from restored redirect/session storage.
+ * This binds all three values before any token endpoint network request.
+ */
+export async function exchangeTrustedCallback(input: {
+  callbackUrl: string;
+  transaction: OAuthTransaction;
+  registration: Readonly<{ issuer: string; clientId: string; redirectUri: string }>;
+  fetcher?: typeof fetch;
+  now?: number;
+}): Promise<OAuthTokens> {
+  if (!input.registration || typeof input.registration !== "object" ||
+      typeof input.registration.issuer !== "string" ||
+      typeof input.registration.clientId !== "string" ||
+      typeof input.registration.redirectUri !== "string") {
+    throw Error("invalid_trusted_oauth_registration");
+  }
+  return exchangeCallback({
+    callbackUrl: input.callbackUrl,
+    transaction: input.transaction,
+    expectedIssuer: input.registration.issuer,
+    expectedClientId: input.registration.clientId,
+    expectedRedirectUri: input.registration.redirectUri,
+    fetcher: input.fetcher,
+    now: input.now,
+  });
+}
