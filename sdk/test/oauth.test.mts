@@ -453,3 +453,20 @@ test("stored callback deletes malformed or tampered state before network I/O", a
   assert.equal(requests,0);
  }
 });
+
+test("stored callback rejects oversized persisted transactions and consumes them", async () => {
+ const registration={issuer,clientId:"public-app",redirectUri};
+ const {transaction}=await beginAuthorization(registration);
+ const entries=new Map([["oauth:tab",JSON.stringify(transaction)+" ".repeat(4097)]]);
+ let requests=0;
+ await assert.rejects(exchangeStoredCallback({
+  registration,storage:{
+   getItem:(key:string)=>entries.get(key)??null,
+   removeItem:(key:string)=>{entries.delete(key);}
+  },storageKey:"oauth:tab",
+  callbackUrl:redirectUri+"?code=valid&state="+transaction.state,
+  fetcher:async()=>{requests++;throw Error("unexpected_fetch");}
+ }),/oauth_transaction_too_large/);
+ assert.equal(entries.size,0);
+ assert.equal(requests,0);
+});
