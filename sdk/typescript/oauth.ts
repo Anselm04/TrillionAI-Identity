@@ -129,7 +129,7 @@ export async function exchangeCallback(input: {
       typeof t.verifier !== "string" || !/^[A-Za-z0-9_-]{43,128}$/.test(t.verifier) ||
       typeof t.clientId !== "string" || !/^[a-zA-Z0-9._~-]{1,128}$/.test(t.clientId) ||
       typeof t.issuer !== "string" || typeof t.redirectUri !== "string" ||
-      typeof t.createdAt !== "number") throw Error("invalid_oauth_transaction");
+      typeof t.createdAt !== "number" || !Number.isSafeInteger(t.createdAt) || t.createdAt < 0) throw Error("invalid_oauth_transaction");
   // Restored transactions alone cannot establish issuer/client authenticity.
   // Hosts should pin these values against their trusted application configuration.
   if (input.expectedIssuer !== undefined && issuerUrl(input.expectedIssuer).href.replace(/\/$/, "") !== t.issuer) throw Error("oauth_issuer_mismatch");
@@ -138,7 +138,7 @@ export async function exchangeCallback(input: {
   const registeredCallback = callbackUri(t.redirectUri);
   if (registeredCallback.href !== t.redirectUri) throw Error("invalid_oauth_transaction");
   const now = input.now ?? Date.now();
-  if (!Number.isFinite(now) || !Number.isFinite(t.createdAt) || now < t.createdAt || now - t.createdAt > 10 * 60_000) throw Error("oauth_transaction_expired");
+  if (!Number.isSafeInteger(now) || now < 0 || now < t.createdAt || now - t.createdAt > 10 * 60_000) throw Error("oauth_transaction_expired");
   const callback = new URL(input.callbackUrl);
   const allowed = new URL(t.redirectUri);
   if (callback.hash || callback.username || callback.password || callback.origin !== allowed.origin || callback.pathname !== allowed.pathname) throw Error("redirect_mismatch");
