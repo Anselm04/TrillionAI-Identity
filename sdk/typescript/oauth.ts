@@ -120,9 +120,11 @@ export async function exchangeCallback(input: {
   if (!t || typeof t !== "object") throw Error("invalid_oauth_transaction");
   // Persisted redirect transactions are untrusted on restoration.
   // Reject malformed state, verifier and client metadata before network I/O.
-  if (!/^[A-Za-z0-9_-]{43,128}$/.test(t.state) ||
-      !/^[A-Za-z0-9_-]{43,128}$/.test(t.verifier) ||
-      !/^[a-zA-Z0-9._~-]{1,128}$/.test(t.clientId)) throw Error("invalid_oauth_transaction");
+  if (typeof t.state !== "string" || !/^[A-Za-z0-9_-]{43,128}$/.test(t.state) ||
+      typeof t.verifier !== "string" || !/^[A-Za-z0-9_-]{43,128}$/.test(t.verifier) ||
+      typeof t.clientId !== "string" || !/^[a-zA-Z0-9._~-]{1,128}$/.test(t.clientId) ||
+      typeof t.issuer !== "string" || typeof t.redirectUri !== "string" ||
+      typeof t.createdAt !== "number") throw Error("invalid_oauth_transaction");
   // Restored transactions alone cannot establish issuer/client authenticity.
   // Hosts should pin these values against their trusted application configuration.
   if (input.expectedIssuer !== undefined && issuerUrl(input.expectedIssuer).href.replace(/\/$/, "") !== t.issuer) throw Error("oauth_issuer_mismatch");
