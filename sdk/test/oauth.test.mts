@@ -230,3 +230,13 @@ test("rejects non-string token types without object coercion",async()=>{
   }),/invalid_token_response/);
  }
 });
+
+test("rejects absent persisted OAuth transaction before any network request",async()=>{
+ let called=false;
+ await assert.rejects(exchangeCallback({
+  transaction:null as unknown as Awaited<ReturnType<typeof beginAuthorization>>["transaction"],
+  callbackUrl:redirectUri+"?code=valid&state=forged",
+  fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+ }),/invalid_oauth_transaction/);
+ assert.equal(called,false);
+});
