@@ -117,6 +117,7 @@ export async function exchangeCallback(input: {
   expectedRedirectUri?: string;
 }): Promise<OAuthTokens> {
   const {transaction:t} = input;
+  if (!t || typeof t !== "object") throw Error("invalid_oauth_transaction");
   // Persisted redirect transactions are untrusted on restoration.
   // Reject malformed state, verifier and client metadata before network I/O.
   if (!/^[A-Za-z0-9_-]{43,128}$/.test(t.state) ||
