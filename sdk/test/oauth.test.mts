@@ -113,3 +113,16 @@ test("rejects restored issuer or client substitution against trusted host config
   assert.equal(called,false);
  }
 });
+
+test("rejects restored callback substitution against trusted host configuration",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const substituted="https://attacker.example/callback";
+ let called=false;
+ await assert.rejects(exchangeCallback({
+  transaction:{...transaction,redirectUri:substituted},
+  callbackUrl:substituted+"?code=valid&state="+transaction.state,
+  expectedIssuer:issuer,expectedClientId:"public-app",expectedRedirectUri:redirectUri,
+  fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+ }),/oauth_redirect_mismatch/);
+ assert.equal(called,false);
+});
