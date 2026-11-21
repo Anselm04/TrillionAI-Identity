@@ -101,6 +101,10 @@ export async function exchangeCallback(input: {
   transaction: OAuthTransaction;
   fetcher?: typeof fetch;
   now?: number;
+  /** Trusted issuer configured by the host application, not restored redirect storage. */
+  expectedIssuer?: string;
+  /** Trusted public client registration identifier. */
+  expectedClientId?: string;
 }): Promise<OAuthTokens> {
   const {transaction:t} = input;
   // Persisted redirect transactions are untrusted on restoration.
@@ -108,6 +112,10 @@ export async function exchangeCallback(input: {
   if (!/^[A-Za-z0-9_-]{43,128}$/.test(t.state) ||
       !/^[A-Za-z0-9_-]{43,128}$/.test(t.verifier) ||
       !/^[a-zA-Z0-9._~-]{1,128}$/.test(t.clientId)) throw Error("invalid_oauth_transaction");
+  // Restored transactions alone cannot establish issuer/client authenticity.
+  // Hosts should pin these values against their trusted application configuration.
+  if (input.expectedIssuer !== undefined && issuerUrl(input.expectedIssuer).href.replace(/\/$/, "") !== t.issuer) throw Error("oauth_issuer_mismatch");
+  if (input.expectedClientId !== undefined && input.expectedClientId !== t.clientId) throw Error("oauth_client_mismatch");
   const registeredCallback = callbackUri(t.redirectUri);
   if (registeredCallback.href !== t.redirectUri) throw Error("invalid_oauth_transaction");
   const now = input.now ?? Date.now();
