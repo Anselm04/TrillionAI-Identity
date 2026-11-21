@@ -294,3 +294,23 @@ test("rejects malformed OAuth scope tokens before authorization",async()=>{
  const {authorizationUrl}=await beginAuthorization({issuer,clientId:"public-app",redirectUri,scope:"openid email profile:read"});
  assert.equal(new URL(authorizationUrl).searchParams.get("scope"),"openid email profile:read");
 });
+
+test("rejects malformed issuer token response scopes",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const scope of ["", "openid  email", " openid", "openid ", "openid\\tprofile", "openid\\nprofile", 'openid"other', "openid\\\\other", 42, null]){
+  await assert.rejects(exchangeCallback({
+   transaction,callbackUrl,
+   fetcher:async()=>new Response(JSON.stringify({
+    access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer",scope
+   }),{status:200})
+  }),/invalid_scope/);
+ }
+ const tokens=await exchangeCallback({
+  transaction,callbackUrl,
+  fetcher:async()=>new Response(JSON.stringify({
+   access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer",scope:"openid email"
+  }),{status:200})
+ });
+ assert.equal(tokens.scope,"openid email");
+});
