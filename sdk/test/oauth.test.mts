@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
-import { beginAuthorization, exchangeCallback, exchangeTrustedCallback } from "../typescript/oauth.ts";
+import { beginAuthorization, exchangeCallback, exchangeTrustedCallback, exchangeStoredCallback } from "../typescript/oauth.ts";
 if (!globalThis.crypto) Object.defineProperty(globalThis,"crypto",{value:webcrypto});
 const issuer="https://example.supabase.co/auth/v1",redirectUri="https://app.example/callback";
 test("creates S256 PKCE request with cryptographic state",async()=>{
@@ -405,5 +405,51 @@ test("rejects blank or control-character authorization codes without token excha
    fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
   }),/invalid_authorization_code/);
   assert.equal(called,false);
+ }
+});
+
+test("stored callback consumes transaction once and blocks replay", async () => {
+ const registration={issuer,clientId:"public-app",redirectUri};
+ const {transaction}=await beginAuthorization(registration);
+ const entries=new Map([["oauth:tab",JSON.stringify(transaction)]]);
+ const storage={
+  getItem:(key:string)=>entries.get(key)??null,
+  removeItem:(key:string)=>{entries.delete(key);}
+ };
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ let requests=0;
+ const fetcher:typeof fetch=async()=>{
+  requests++;
+  return new Response(JSON.stringify({
+   access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer"
+  }),{status:200});
+ };
+ const result=await exchangeStoredCallback({
+  registration,storage,storageKey:"oauth:tab",callbackUrl,fetcher
+ });
+ assert.equal(result.access_token,"access");
+ assert.equal(entries.size,0);
+ await assert.rejects(exchangeStoredCallback({
+  registration,storage,storageKey:"oauth:tab",callbackUrl,fetcher
+ }),/missing_oauth_transaction/);
+ assert.equal(requests,1);
+});
+
+test("stored callback deletes malformed or tampered state before network I/O", async () => {
+ const registration={issuer,clientId:"public-app",redirectUri};
+ const {transaction}=await beginAuthorization(registration);
+ for(const raw of ["{invalid",JSON.stringify({...transaction,issuer:"https://attacker.example/auth/v1"})]){
+  const entries=new Map([["oauth:tab",raw]]);
+  let requests=0;
+  await assert.rejects(exchangeStoredCallback({
+   registration,storage:{
+    getItem:(key:string)=>entries.get(key)??null,
+    removeItem:(key:string)=>{entries.delete(key);}
+   },storageKey:"oauth:tab",
+   callbackUrl:redirectUri+"?code=valid&state="+transaction.state,
+   fetcher:async()=>{requests++;throw Error("unexpected_fetch");}
+  }),/invalid_oauth_transaction|oauth_issuer_mismatch/);
+  assert.equal(entries.size,0);
+  assert.equal(requests,0);
  }
 });
