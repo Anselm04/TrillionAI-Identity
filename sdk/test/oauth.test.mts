@@ -376,3 +376,21 @@ test("trusted-registration callback helper rejects missing configuration without
  }),/invalid_trusted_oauth_registration/);
  assert.equal(called,false);
 });
+
+test("rejects whitespace-only OAuth tokens returned by issuer",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const override of [
+  {access_token:"  "},
+  {refresh_token:"\t"},
+  {id_token:"  \n "}
+ ]){
+  await assert.rejects(exchangeCallback({
+   transaction,callbackUrl,
+   fetcher:async()=>new Response(JSON.stringify({
+    access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer",
+    ...override
+   }),{status:200})
+  }),/invalid_token_response|invalid_id_token/);
+ }
+});
