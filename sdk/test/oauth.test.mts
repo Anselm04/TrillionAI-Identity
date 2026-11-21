@@ -217,3 +217,16 @@ test("rejects non-finite callback clocks without token exchange",async()=>{
   assert.equal(called,false);
  }
 });
+
+test("rejects non-string token types without object coercion",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const token_type of [null,{},["bearer"],42,true]){
+  await assert.rejects(exchangeCallback({
+   transaction,callbackUrl,
+   fetcher:async()=>new Response(JSON.stringify({
+    access_token:"access",refresh_token:"refresh",expires_in:3600,token_type
+   }),{status:200})
+  }),/invalid_token_response/);
+ }
+});
