@@ -204,3 +204,16 @@ test("rejects orphaned OAuth error metadata and empty errors before exchange",as
   assert.equal(called,false);
  }
 });
+
+test("rejects non-finite callback clocks without token exchange",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const now of [NaN,Infinity,-Infinity]){
+  let called=false;
+  await assert.rejects(exchangeCallback({
+   transaction,callbackUrl,now,
+   fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+  }),/oauth_transaction_expired/);
+  assert.equal(called,false);
+ }
+});
