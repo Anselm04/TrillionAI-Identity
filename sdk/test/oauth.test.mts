@@ -153,3 +153,25 @@ test("rejects reserved and duplicate registered callback parameters before autho
  });
  assert.equal(new URL(valid.authorizationUrl).searchParams.get("redirect_uri"),redirectUri+"?tenant=a");
 });
+
+test("binds registered callback query values and rejects substitution before token exchange",async()=>{
+ const registered=redirectUri+"?tenant=trusted";
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri:registered});
+ const valid=registered+"&code=valid&state="+transaction.state;
+ let exchanges=0;
+ const fetcher:typeof fetch=async()=>{
+  exchanges++;
+  return new Response(JSON.stringify({access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer"}),{status:200});
+ };
+ for(const callbackUrl of [
+  redirectUri+"?tenant=attacker&code=valid&state="+transaction.state,
+  valid+"&tenant=attacker",
+  redirectUri+"?code=valid&state="+transaction.state,
+ ]){
+  await assert.rejects(exchangeCallback({transaction,callbackUrl,fetcher}),/redirect_mismatch/);
+ }
+ assert.equal(exchanges,0);
+ const result=await exchangeCallback({transaction,callbackUrl:valid,fetcher,expectedIssuer:issuer,expectedClientId:"public-app",expectedRedirectUri:registered});
+ assert.equal(result.access_token,"access");
+ assert.equal(exchanges,1);
+});
