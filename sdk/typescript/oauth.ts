@@ -240,6 +240,8 @@ export async function exchangeStoredCallback(input: {
   const raw = input.storage.getItem(input.storageKey);
   input.storage.removeItem(input.storageKey);
   if (raw === null) throw Error("missing_oauth_transaction");
+  // A PKCE transaction is small. Bound untrusted persisted input before JSON parsing.
+  if (raw.length > 4096) throw Error("oauth_transaction_too_large");
   let transaction: OAuthTransaction;
   try {
     transaction = JSON.parse(raw) as OAuthTransaction;
