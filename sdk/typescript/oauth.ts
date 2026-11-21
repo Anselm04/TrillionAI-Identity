@@ -130,7 +130,7 @@ export async function exchangeCallback(input: {
   const registeredCallback = callbackUri(t.redirectUri);
   if (registeredCallback.href !== t.redirectUri) throw Error("invalid_oauth_transaction");
   const now = input.now ?? Date.now();
-  if (!Number.isFinite(t.createdAt) || now < t.createdAt || now - t.createdAt > 10 * 60_000) throw Error("oauth_transaction_expired");
+  if (!Number.isFinite(now) || !Number.isFinite(t.createdAt) || now < t.createdAt || now - t.createdAt > 10 * 60_000) throw Error("oauth_transaction_expired");
   const callback = new URL(input.callbackUrl);
   const allowed = new URL(t.redirectUri);
   if (callback.hash || callback.username || callback.password || callback.origin !== allowed.origin || callback.pathname !== allowed.pathname) throw Error("redirect_mismatch");
