@@ -70,9 +70,17 @@ test("rejects fragment-bearing callback without token exchange",async()=>{
 });
 test("rejects registered OAuth protocol parameters",async()=>{
  const registeredRedirect="https://app.example/callback?state=preconfigured";
- const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri:registeredRedirect});
+ // Registration must reject protocol-owned query keys before redirect.
+ await assert.rejects(beginAuthorization({issuer,clientId:"public-app",redirectUri:registeredRedirect}),/invalid_registered_callback_parameter/);
+ // A restored transaction may predate registration validation: exchange must
+ // independently reject it without contacting the token endpoint.
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
  let called=false;
- await assert.rejects(exchangeCallback({transaction,callbackUrl:registeredRedirect+"&code=valid&state="+transaction.state,fetcher:async()=>{called=true;throw Error("unexpected_fetch");}}),/invalid_registered_callback_parameter|redirect_mismatch/);
+ await assert.rejects(exchangeCallback({
+  transaction:{...transaction,redirectUri:registeredRedirect},
+  callbackUrl:registeredRedirect+"&code=valid&state="+transaction.state,
+  fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+ }),/invalid_registered_callback_parameter|redirect_mismatch/);
  assert.equal(called,false);
 });
 
