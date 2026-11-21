@@ -175,3 +175,16 @@ test("binds registered callback query values and rejects substitution before tok
  assert.equal(result.access_token,"access");
  assert.equal(exchanges,1);
 });
+
+
+test("rejects duplicate registered callback keys in restored transactions without exchange",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const duplicate=redirectUri+"?tenant=one&tenant=two";
+ let called=false;
+ await assert.rejects(exchangeCallback({
+  transaction:{...transaction,redirectUri:duplicate},
+  callbackUrl:duplicate+"&code=valid&state="+transaction.state,
+  fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+ }),/duplicate_registered_callback_parameter/);
+ assert.equal(called,false);
+});
