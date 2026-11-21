@@ -95,7 +95,7 @@ function oauthResponse(data: unknown): OAuthTokens {
   const t = data as Record<string, unknown>;
   if (typeof t.access_token !== "string" || !t.access_token ||
       typeof t.refresh_token !== "string" || !t.refresh_token ||
-      typeof t.expires_in !== "number" || !Number.isFinite(t.expires_in) || t.expires_in <= 0 ||
+      typeof t.expires_in !== "number" || !Number.isSafeInteger(t.expires_in) || t.expires_in <= 0 ||
       typeof t.token_type !== "string" || t.token_type.toLowerCase() !== "bearer") throw Error("invalid_token_response");
   if (t.id_token !== undefined && (typeof t.id_token !== "string" || !t.id_token)) throw Error("invalid_id_token");
   if (t.scope !== undefined && typeof t.scope !== "string") throw Error("invalid_scope");
