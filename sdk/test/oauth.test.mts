@@ -260,3 +260,15 @@ test("rejects non-string restored transaction fields before token exchange",asyn
   assert.equal(called,false);
  }
 });
+
+test("rejects empty OIDC ID token in successful token response",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ await assert.rejects(exchangeCallback({
+  transaction,callbackUrl,
+  fetcher:async()=>new Response(JSON.stringify({
+   access_token:"access",refresh_token:"refresh",expires_in:3600,
+   token_type:"bearer",id_token:""
+  }),{status:200})
+ }),/invalid_id_token/);
+});
