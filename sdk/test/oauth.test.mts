@@ -285,3 +285,12 @@ test("rejects fractional, unsafe and nonpositive OAuth token lifetimes",async()=
   }),/invalid_token_response/);
  }
 });
+
+
+test("rejects malformed OAuth scope tokens before authorization",async()=>{
+ for(const scope of ["", " ", "openid  email", " openid", "openid ", "openid\tprofile", "openid\nprofile", 'openid"other', "openid\\other", "openid\u007fother"]){
+  await assert.rejects(beginAuthorization({issuer,clientId:"public-app",redirectUri,scope}),/invalid_oauth_scope/);
+ }
+ const {authorizationUrl}=await beginAuthorization({issuer,clientId:"public-app",redirectUri,scope:"openid email profile:read"});
+ assert.equal(new URL(authorizationUrl).searchParams.get("scope"),"openid email profile:read");
+});
