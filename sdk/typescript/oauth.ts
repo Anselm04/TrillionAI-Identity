@@ -72,7 +72,7 @@ export async function beginAuthorization(options: {
   for (const name of new Set(callback.searchParams.keys())) {
     if (callback.searchParams.getAll(name).length !== 1) throw Error("duplicate_registered_callback_parameter");
   }
-  if (!globalThis.crypto?.subtle) throw Error("webcrypto_unavailable");
+  // Scope is a space-delimited list of printable OAuth scope tokens (RFC 6749 §3.3).\n  // Reject empty, control-character and malformed scopes before redirect.\n  const scope = options.scope ?? "openid email profile";\n  if (!/^[\\x21\\x23-\\x5B\\x5D-\\x7E]+(?: [\\x21\\x23-\\x5B\\x5D-\\x7E]+)*$/.test(scope)) throw Error("invalid_oauth_scope");\n  if (!globalThis.crypto?.subtle) throw Error("webcrypto_unavailable");
   const verifier = randomString();
   const state = randomString();
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
@@ -84,7 +84,7 @@ export async function beginAuthorization(options: {
   authorize.searchParams.set("state", state);
   authorize.searchParams.set("code_challenge", challenge);
   authorize.searchParams.set("code_challenge_method", "S256");
-  authorize.searchParams.set("scope", options.scope ?? "openid email profile");
+  authorize.searchParams.set("scope", scope);
   return { authorizationUrl: authorize.href, transaction: {
     state, verifier, clientId: options.clientId, redirectUri: options.redirectUri,
     issuer: issuer.href.replace(/\/$/, ""), createdAt: Date.now(),
