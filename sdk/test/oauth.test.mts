@@ -314,3 +314,24 @@ test("rejects malformed issuer token response scopes",async()=>{
  });
  assert.equal(tokens.scope,"openid email");
 });
+
+test("rejects invalid persisted timestamps and unsafe callback clocks before exchange",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const createdAt of [-1,NaN,Infinity,-Infinity,1.5,Number.MAX_SAFE_INTEGER+1]){
+  let called=false;
+  await assert.rejects(exchangeCallback({
+   transaction:{...transaction,createdAt},callbackUrl,
+   fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+  }),/invalid_oauth_transaction/);
+  assert.equal(called,false);
+ }
+ for(const now of [-1,1.5,Number.MAX_SAFE_INTEGER+1]){
+  let called=false;
+  await assert.rejects(exchangeCallback({
+   transaction,callbackUrl,now,
+   fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+  }),/oauth_transaction_expired/);
+  assert.equal(called,false);
+ }
+});
