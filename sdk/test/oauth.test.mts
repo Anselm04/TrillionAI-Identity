@@ -97,3 +97,19 @@ test("rejects tampered persisted PKCE transaction before token exchange",async()
    assert.equal(called,false);
  }
 });
+
+test("rejects restored issuer or client substitution against trusted host configuration",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const [changed,expected] of [
+  [{...transaction,issuer:"https://attacker.example/auth/v1"},"oauth_issuer_mismatch"],
+  [{...transaction,clientId:"attacker-app"},"oauth_client_mismatch"],
+ ] as const){
+  let called=false;
+  await assert.rejects(exchangeCallback({
+   transaction:changed,callbackUrl,expectedIssuer:issuer,expectedClientId:"public-app",
+   fetcher:async()=>{called=true;throw Error("unexpected_fetch");}
+  }),new RegExp(expected));
+  assert.equal(called,false);
+ }
+});
