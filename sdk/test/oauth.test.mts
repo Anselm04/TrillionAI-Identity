@@ -705,3 +705,18 @@ test("accepts a valid JSON token response split across stream chunks", async () 
  assert.equal(tokens.access_token,"access");
  assert.equal(tokens.refresh_token,"refresh");
 });
+
+test("pre-aborted OAuth exchange never calls a custom token fetcher", async () => {
+ const registration={issuer,clientId:"public-app",redirectUri};
+ const {transaction}=await beginAuthorization(registration);
+ const controller=new AbortController();
+ controller.abort();
+ let requests=0;
+ await assert.rejects(exchangeTrustedCallback({
+  registration,transaction,
+  callbackUrl:redirectUri+"?code=valid&state="+transaction.state,
+  signal:controller.signal,
+  fetcher:async()=>{requests++;throw Error("unexpected_fetch");}
+ }),/oauth_exchange_aborted/);
+ assert.equal(requests,0);
+});
