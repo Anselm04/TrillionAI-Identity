@@ -74,7 +74,9 @@ export async function beginAuthorization(options: {
   }
   // RFC 6749 section 3.3: scope tokens exclude spaces, quotes and backslashes.
   const scope = options.scope ?? "openid email profile";
-  // Bound scope length before building the authorization URL. The grammar is\n  // ASCII-only, so string length also bounds its UTF-8 byte length.\n  if (scope.length > 1024 || !/^[\x21\x23-\x5B\x5D-\x7E]+(?: [\x21\x23-\x5B\x5D-\x7E]+)*$/.test(scope)) throw Error("invalid_oauth_scope");
+  // Bound scope length before building the authorization URL. The grammar is
+  // ASCII-only, so string length also bounds its UTF-8 byte length.
+  if (scope.length > 1024 || !/^[\x21\x23-\x5B\x5D-\x7E]+(?: [\x21\x23-\x5B\x5D-\x7E]+)*$/.test(scope)) throw Error("invalid_oauth_scope");
   if (!globalThis.crypto?.subtle) throw Error("webcrypto_unavailable");
   const verifier = randomString();
   const state = randomString();
