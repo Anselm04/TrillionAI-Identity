@@ -256,3 +256,29 @@ export async function exchangeStoredCallback(input: {
     now: input.now,
   });
 }
+
+/**
+ * Begin a redirect flow only after its PKCE transaction is safely persisted.
+ * Refuse to overwrite an in-flight authorization in the same tab/key.
+ * The caller must navigate to authorizationUrl only after this resolves.
+ */
+export async function beginStoredAuthorization(input: {
+  registration: Readonly<{ issuer: string; clientId: string; redirectUri: string }>;
+  storage: Pick<Storage, "getItem" | "setItem">;
+  storageKey: string;
+  scope?: string;
+}): Promise<{ authorizationUrl: string }> {
+  if (!input.storage || typeof input.storage.getItem !== "function" ||
+      typeof input.storage.setItem !== "function" ||
+      typeof input.storageKey !== "string" || !input.storageKey ||
+      input.storageKey.length > 256) throw Error("invalid_oauth_storage");
+  if (!input.registration || typeof input.registration !== "object") throw Error("invalid_trusted_oauth_registration");
+  if (input.storage.getItem(input.storageKey) !== null) throw Error("oauth_transaction_already_pending");
+  const { authorizationUrl, transaction } = await beginAuthorization({
+    ...input.registration, scope: input.scope,
+  });
+  // A storage exception must prevent the redirect, never fall back to an
+  // authorization request with an unpersisted state/verifier.
+  input.storage.setItem(input.storageKey, JSON.stringify(transaction));
+  return { authorizationUrl };
+}
