@@ -667,3 +667,38 @@ test("cancels unsuccessful issuer response without reading its body", async () =
  assert.equal(canceled, true);
  assert.equal(pulled, false);
 });
+
+
+test("rejects malformed UTF-8 token responses and cancels unread stream", async () => {
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ let cancelled=false;
+ const body=new ReadableStream<Uint8Array>({
+  start(controller){controller.enqueue(new Uint8Array([0xff]));},
+  cancel(){cancelled=true;}
+ });
+ await assert.rejects(exchangeCallback({
+  transaction,callbackUrl,
+  fetcher:async()=>new Response(body,{status:200})
+ }),/TypeError|encoded data|UTF-8|utf-8/i);
+ assert.equal(cancelled,true);
+});
+
+test("accepts a valid JSON token response split across stream chunks", async () => {
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ const payload=JSON.stringify({access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer"});
+ const encoded=new TextEncoder().encode(payload);
+ const body=new ReadableStream<Uint8Array>({
+  start(controller){
+   for(let i=0;i<encoded.length;i+=3)controller.enqueue(encoded.slice(i,i+3));
+   controller.close();
+  }
+ });
+ const tokens=await exchangeCallback({
+  transaction,callbackUrl,
+  fetcher:async()=>new Response(body,{status:200})
+ });
+ assert.equal(tokens.access_token,"access");
+ assert.equal(tokens.refresh_token,"refresh");
+});
