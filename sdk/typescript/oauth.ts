@@ -139,6 +139,9 @@ export async function exchangeCallback(input: {
   if (registeredCallback.href !== t.redirectUri) throw Error("invalid_oauth_transaction");
   const now = input.now ?? Date.now();
   if (!Number.isSafeInteger(now) || now < 0 || now < t.createdAt || now - t.createdAt > 10 * 60_000) throw Error("oauth_transaction_expired");
+  // Bound callback input before URL parsing and token endpoint I/O.
+  // OAuth authorization codes are short opaque values, not unbounded payloads.
+  if (typeof input.callbackUrl !== "string" || input.callbackUrl.length > 8192) throw Error("invalid_oauth_callback_size");
   const callback = new URL(input.callbackUrl);
   const allowed = new URL(t.redirectUri);
   if (callback.hash || callback.username || callback.password || callback.origin !== allowed.origin || callback.pathname !== allowed.pathname) throw Error("redirect_mismatch");
@@ -175,7 +178,7 @@ export async function exchangeCallback(input: {
   if (callback.searchParams.has("error") && callback.searchParams.has("code")) throw Error("ambiguous_oauth_response");
   if (callback.searchParams.has("error")) throw Error("oauth_authorization_denied");
   const codes = callback.searchParams.getAll("code");
-  if (codes.length !== 1 || !codes[0] || !/^[\x21-\x7E]+$/.test(codes[0])) throw Error("invalid_authorization_code");
+  if (codes.length !== 1 || !codes[0] || codes[0].length > 4096 || !/^[\x21-\x7E]+$/.test(codes[0])) throw Error("invalid_authorization_code");
   const issuer = issuerUrl(t.issuer);
   const tokenEndpoint = new URL(issuer.href.replace(/\/$/, "") + "/oauth/token");
   const response = await (input.fetcher ?? fetch)(tokenEndpoint, {
