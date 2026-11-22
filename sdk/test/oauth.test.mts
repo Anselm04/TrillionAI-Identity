@@ -496,3 +496,20 @@ test("stored authorization fails closed when browser storage rejects persistence
   registration,storage:{getItem:()=>null,setItem:()=>{}},storageKey:""
  }),/invalid_oauth_storage/);
 });
+
+test("stored authorization rejects silently discarded or modified PKCE writes",async()=>{
+ const registration={issuer,clientId:"public-app",redirectUri};
+ for(const setItem of [
+  (_key:string,_value:string)=>{},
+  (_key:string,_value:string)=>{ persisted="corrupted"; },
+ ]){
+  let persisted:string|null=null;
+  const storage={
+   getItem:(_key:string)=>persisted,
+   setItem:(key:string,value:string)=>{ setItem(key,value); },
+  };
+  await assert.rejects(beginStoredAuthorization({
+   registration,storage,storageKey:"oauth:tab"
+  }),/oauth_transaction_not_persisted/);
+ }
+});
