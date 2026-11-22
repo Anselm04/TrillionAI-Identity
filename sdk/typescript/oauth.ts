@@ -191,7 +191,12 @@ export async function exchangeCallback(input: {
     body:new URLSearchParams({grant_type:"authorization_code",code:codes[0],
       client_id:t.clientId,redirect_uri:t.redirectUri,code_verifier:t.verifier}),
   });
-  if (!response.ok) throw Error("oauth_token_exchange_failed");
+  if (!response.ok) {
+    // Discard an unsuccessful issuer response without buffering untrusted error data.
+    // Cancellation is best-effort: preserve the stable exchange failure reason.
+    try { await response.body?.cancel(); } catch { /* Ignore cancellation failure. */ }
+    throw Error("oauth_token_exchange_failed");
+  }
   // Do not parse arbitrarily large untrusted token endpoint responses. OAuth
   // credentials are small; oversized payloads indicate a broken or hostile issuer.
   if (!response.body) throw Error("invalid_token_response");
