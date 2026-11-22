@@ -301,7 +301,7 @@ test("rejects malformed OAuth scope tokens before authorization",async()=>{
 test("rejects malformed issuer token response scopes",async()=>{
  const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
  const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
- for(const scope of ["", "openid  email", " openid", "openid ", "openid\\tprofile", "openid\\nprofile", 'openid"other', "openid\\\\other", 42, null]){
+ for(const scope of ["", "openid  email", " openid", "openid ", "openid\tprofile", "openid\nprofile", "openid\rprofile", "openid\\tprofile", "openid\\nprofile", 'openid"other', "openid\\\\other", 42, null]){
   await assert.rejects(exchangeCallback({
    transaction,callbackUrl,
    fetcher:async()=>new Response(JSON.stringify({
