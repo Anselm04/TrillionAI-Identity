@@ -499,14 +499,13 @@ test("stored authorization fails closed when browser storage rejects persistence
 
 test("stored authorization rejects silently discarded or modified PKCE writes",async()=>{
  const registration={issuer,clientId:"public-app",redirectUri};
- for(const setItem of [
-  (_key:string,_value:string)=>{},
-  (_key:string,_value:string)=>{ persisted="corrupted"; },
- ]){
+ for(const mode of ["discard","modify"]){
   let persisted:string|null=null;
   const storage={
    getItem:(_key:string)=>persisted,
-   setItem:(key:string,value:string)=>{ setItem(key,value); },
+   setItem:(_key:string,value:string)=>{
+    if(mode==="modify") persisted=value+"corrupted";
+   },
   };
   await assert.rejects(beginStoredAuthorization({
    registration,storage,storageKey:"oauth:tab"
