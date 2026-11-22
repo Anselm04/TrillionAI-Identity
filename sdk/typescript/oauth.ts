@@ -190,8 +190,23 @@ export async function exchangeCallback(input: {
   if (!response.ok) throw Error("oauth_token_exchange_failed");
   // Do not parse arbitrarily large untrusted token endpoint responses. OAuth
   // credentials are small; oversized payloads indicate a broken or hostile issuer.
-  const body = await response.text();
-  if (body.length > 65536) throw Error("oauth_token_response_too_large");
+  if (!response.body) throw Error("invalid_token_response");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let body = "";
+  let bytes = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      bytes += chunk.value.byteLength;
+      if (bytes > 65536) throw Error("oauth_token_response_too_large");
+      body += decoder.decode(chunk.value, { stream: true });
+    }
+    body += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
   let payload: unknown;
   try { payload = JSON.parse(body); } catch { throw Error("invalid_token_response"); }
   return oauthResponse(payload);
