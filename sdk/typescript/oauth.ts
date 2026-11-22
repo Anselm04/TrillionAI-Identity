@@ -279,6 +279,10 @@ export async function beginStoredAuthorization(input: {
   });
   // A storage exception must prevent the redirect, never fall back to an
   // authorization request with an unpersisted state/verifier.
-  input.storage.setItem(input.storageKey, JSON.stringify(transaction));
+  const serialized = JSON.stringify(transaction);
+  input.storage.setItem(input.storageKey, serialized);
+  // Some storage adapters silently discard writes. Never navigate unless the
+  // exact verifier and state can be recovered by the callback handler.
+  if (input.storage.getItem(input.storageKey) !== serialized) throw Error("oauth_transaction_not_persisted");
   return { authorizationUrl };
 }
