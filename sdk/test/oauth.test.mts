@@ -577,3 +577,21 @@ test("rejects OIDC ID tokens containing whitespace or control bytes",async()=>{
   }),/invalid_id_token/);
  }
 });
+
+test("rejects oversized and malformed token responses without returning credentials",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const body of ["x".repeat(65537),"{not-json"]){
+  await assert.rejects(exchangeCallback({
+   transaction,callbackUrl,
+   fetcher:async()=>new Response(body,{status:200})
+  }),/oauth_token_response_too_large|invalid_token_response/);
+ }
+ const valid=await exchangeCallback({
+  transaction,callbackUrl,
+  fetcher:async()=>new Response(JSON.stringify({
+   access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer"
+  }),{status:200})
+ });
+ assert.equal(valid.access_token,"access");
+});
