@@ -188,7 +188,13 @@ export async function exchangeCallback(input: {
       client_id:t.clientId,redirect_uri:t.redirectUri,code_verifier:t.verifier}),
   });
   if (!response.ok) throw Error("oauth_token_exchange_failed");
-  return oauthResponse(await response.json());
+  // Do not parse arbitrarily large untrusted token endpoint responses. OAuth
+  // credentials are small; oversized payloads indicate a broken or hostile issuer.
+  const body = await response.text();
+  if (body.length > 65536) throw Error("oauth_token_response_too_large");
+  let payload: unknown;
+  try { payload = JSON.parse(body); } catch { throw Error("invalid_token_response"); }
+  return oauthResponse(payload);
 }
 
 /**
