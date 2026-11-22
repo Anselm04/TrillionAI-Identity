@@ -547,3 +547,19 @@ test("rejects oversized callback URLs and authorization codes without token exch
  }),/invalid_authorization_code/);
  assert.equal(sent,false);
 });
+
+test("rejects whitespace and control characters inside bearer tokens",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const token of ["abc def","abc\\tdef","abc\\ndef","abc\\u0000def","abc\\u007fdef"]){
+  for(const field of ["access_token","refresh_token"] as const){
+   await assert.rejects(exchangeCallback({
+    transaction,callbackUrl,
+    fetcher:async()=>new Response(JSON.stringify({
+     access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer",
+     [field]:token
+    }),{status:200})
+   }),/invalid_token_response/);
+  }
+ }
+});
