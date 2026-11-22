@@ -98,11 +98,11 @@ export async function beginAuthorization(options: {
 function oauthResponse(data: unknown): OAuthTokens {
   if (!data || typeof data !== "object") throw Error("invalid_token_response");
   const t = data as Record<string, unknown>;
-  if (typeof t.access_token !== "string" || !t.access_token.trim() || /[\x00-\x20\x7f]/.test(t.access_token) ||
-      typeof t.refresh_token !== "string" || !t.refresh_token.trim() || /[\x00-\x20\x7f]/.test(t.refresh_token) ||
+  if (typeof t.access_token !== "string" || !t.access_token.trim() || /[\s\x00-\x1f\x7f-\x9f]/u.test(t.access_token) ||
+      typeof t.refresh_token !== "string" || !t.refresh_token.trim() || /[\s\x00-\x1f\x7f-\x9f]/u.test(t.refresh_token) ||
       typeof t.expires_in !== "number" || !Number.isSafeInteger(t.expires_in) || t.expires_in <= 0 ||
       typeof t.token_type !== "string" || t.token_type.toLowerCase() !== "bearer") throw Error("invalid_token_response");
-  if (t.id_token !== undefined && (typeof t.id_token !== "string" || !t.id_token.trim() || /[\x00-\x20\x7f]/.test(t.id_token))) throw Error("invalid_id_token");
+  if (t.id_token !== undefined && (typeof t.id_token !== "string" || !t.id_token.trim() || /[\s\x00-\x1f\x7f-\x9f]/u.test(t.id_token))) throw Error("invalid_id_token");
   // Scope returned by the issuer must obey the same RFC 6749 token grammar.
   if (t.scope !== undefined && (typeof t.scope !== "string" || t.scope.length > 1024 ||
       !/^[\x21\x23-\x5B\x5D-\x7E]+(?: [\x21\x23-\x5B\x5D-\x7E]+)*$/.test(t.scope))) throw Error("invalid_scope");
