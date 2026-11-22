@@ -116,6 +116,8 @@ export async function exchangeCallback(input: {
   transaction: OAuthTransaction;
   fetcher?: typeof fetch;
   now?: number;
+  /** Optional cancellation from the hosting application. */
+  signal?: AbortSignal;
   /** Trusted issuer configured by the host application, not restored redirect storage. */
   expectedIssuer?: string;
   /** Trusted public client registration identifier. */
@@ -184,7 +186,7 @@ export async function exchangeCallback(input: {
   const issuer = issuerUrl(t.issuer);
   const tokenEndpoint = new URL(issuer.href.replace(/\/$/, "") + "/oauth/token");
   const response = await (input.fetcher ?? fetch)(tokenEndpoint, {
-    method:"POST", redirect:"error", cache:"no-store",
+    method:"POST", redirect:"error", cache:"no-store", signal:input.signal,
     headers:{"Content-Type":"application/x-www-form-urlencoded"},
     body:new URLSearchParams({grant_type:"authorization_code",code:codes[0],
       client_id:t.clientId,redirect_uri:t.redirectUri,code_verifier:t.verifier}),
@@ -231,6 +233,7 @@ export async function exchangeTrustedCallback(input: {
   registration: Readonly<{ issuer: string; clientId: string; redirectUri: string }>;
   fetcher?: typeof fetch;
   now?: number;
+  signal?: AbortSignal;
 }): Promise<OAuthTokens> {
   if (!input.registration || typeof input.registration !== "object" ||
       typeof input.registration.issuer !== "string" ||
@@ -246,6 +249,7 @@ export async function exchangeTrustedCallback(input: {
     expectedRedirectUri: input.registration.redirectUri,
     fetcher: input.fetcher,
     now: input.now,
+    signal: input.signal,
   });
 }
 
@@ -262,6 +266,7 @@ export async function exchangeStoredCallback(input: {
   storageKey: string;
   fetcher?: typeof fetch;
   now?: number;
+  signal?: AbortSignal;
 }): Promise<OAuthTokens> {
   if (!input.storage || typeof input.storage.getItem !== "function" ||
       typeof input.storage.removeItem !== "function" ||
@@ -285,6 +290,7 @@ export async function exchangeStoredCallback(input: {
     registration: input.registration,
     fetcher: input.fetcher,
     now: input.now,
+    signal: input.signal,
   });
 }
 
