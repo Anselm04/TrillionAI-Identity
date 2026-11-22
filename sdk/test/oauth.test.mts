@@ -533,3 +533,17 @@ test("concurrent stored authorizations preserve the first pending PKCE transacti
  const pending=JSON.parse(entries.get("oauth:tab")!);
  assert.equal(new URL((fulfilled[0] as PromiseFulfilledResult<{authorizationUrl:string}>).value.authorizationUrl).searchParams.get("state"),pending.state);
 });
+
+
+test("rejects oversized callback URLs and authorization codes without token exchange",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ let sent=false;
+ const fetcher:typeof fetch=async()=>{sent=true;throw Error("unexpected_fetch");};
+ await assert.rejects(exchangeCallback({
+  transaction,callbackUrl:redirectUri+"?code="+("x".repeat(8192))+"&state="+transaction.state,fetcher
+ }),/invalid_oauth_callback_size/);
+ await assert.rejects(exchangeCallback({
+  transaction,callbackUrl:redirectUri+"?code="+("x".repeat(4097))+"&state="+transaction.state,fetcher
+ }),/invalid_authorization_code/);
+ assert.equal(sent,false);
+});
