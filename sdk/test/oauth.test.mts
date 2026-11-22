@@ -650,3 +650,20 @@ test("rejects oversized issuer-returned scope without accepting tokens", async (
  }),{status:200});
  await assert.rejects(exchangeCallback({transaction,callbackUrl,fetcher}),/invalid_scope/);
 });
+
+test("cancels unsuccessful issuer response without reading its body", async () => {
+ const { transaction } = await beginAuthorization({ issuer, clientId: "public-app", redirectUri });
+ let canceled = false;
+ let pulled = false;
+ const stream = new ReadableStream<Uint8Array>({
+  pull() { pulled = true; },
+  cancel() { canceled = true; },
+ }, { highWaterMark: 0 });
+ await assert.rejects(exchangeCallback({
+  transaction,
+  callbackUrl: redirectUri + "?code=valid&state=" + transaction.state,
+  fetcher: async () => new Response(stream, { status: 400 }),
+ }), /oauth_token_exchange_failed/);
+ assert.equal(canceled, true);
+ assert.equal(pulled, false);
+});
