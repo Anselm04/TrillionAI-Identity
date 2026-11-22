@@ -620,28 +620,27 @@ test("bounds requested OAuth scope before constructing authorization URL", async
  assert.equal(new URL(valid.authorizationUrl).searchParams.get("scope"),"a".repeat(1024));
 });
 
-test("propagates caller AbortSignal through trusted and stored OAuth exchanges", async () => {
+test("pre-aborted trusted and stored exchanges never invoke custom fetch", async () => {
  const registration={issuer,clientId:"public-app",redirectUri};
  const {transaction}=await beginAuthorization(registration);
  const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
  const controller=new AbortController();
  controller.abort();
  let calls=0;
- const fetcher:typeof fetch=async(_url,init)=>{
+ const fetcher:typeof fetch=async()=>{
   calls++;
-  assert.equal(init?.signal,controller.signal);
-  throw Object.assign(new Error("cancelled"),{name:"AbortError"});
+  throw Error("unexpected_fetch");
  };
  await assert.rejects(exchangeTrustedCallback({
   registration,transaction,callbackUrl,fetcher,signal:controller.signal
- }),/cancelled/);
+ }),/oauth_exchange_aborted/);
  const entries=new Map([["oauth:tab",JSON.stringify(transaction)]]);
  await assert.rejects(exchangeStoredCallback({
   registration,callbackUrl,storageKey:"oauth:tab",
   storage:{getItem:(key:string)=>entries.get(key)??null,removeItem:(key:string)=>{entries.delete(key);}},
   fetcher,signal:controller.signal
- }),/cancelled/);
- assert.equal(calls,2);
+ }),/oauth_exchange_aborted/);
+ assert.equal(calls,0);
  assert.equal(entries.size,0);
 });
 
