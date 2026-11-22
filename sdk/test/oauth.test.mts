@@ -563,3 +563,17 @@ test("rejects whitespace and control characters inside bearer tokens",async()=>{
   }
  }
 });
+
+test("rejects OIDC ID tokens containing whitespace or control bytes",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ for(const id_token of ["abc def","abc\\tdef","abc\\ndef","abc\\u0000def","abc\\u007fdef"]){
+  await assert.rejects(exchangeCallback({
+   transaction,callbackUrl,
+   fetcher:async()=>new Response(JSON.stringify({
+    access_token:"access",refresh_token:"refresh",expires_in:3600,
+    token_type:"bearer",id_token
+   }),{status:200})
+  }),/invalid_id_token/);
+ }
+});
