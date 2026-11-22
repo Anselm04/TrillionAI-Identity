@@ -595,3 +595,17 @@ test("rejects oversized and malformed token responses without returning credenti
  });
  assert.equal(valid.access_token,"access");
 });
+
+test("oversized token response cancels unread stream without returning credentials", async () => {
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ let cancelled=false;
+ const body=new ReadableStream<Uint8Array>({
+  start(controller) { controller.enqueue(new Uint8Array(65537)); },
+  cancel() { cancelled=true; }
+ });
+ await assert.rejects(exchangeCallback({
+  transaction,callbackUrl:redirectUri+"?code=valid&state="+transaction.state,
+  fetcher:async()=>new Response(body,{status:200})
+ }),/oauth_token_response_too_large/);
+ assert.equal(cancelled,true);
+});
