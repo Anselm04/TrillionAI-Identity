@@ -720,3 +720,24 @@ test("pre-aborted OAuth exchange never calls a custom token fetcher", async () =
  }),/oauth_exchange_aborted/);
  assert.equal(requests,0);
 });
+
+test("rejects token stream when custom fetch ignores cancellation", async () => {
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const controller=new AbortController();
+ let cancelled=false;
+ const responseBody=new ReadableStream<Uint8Array>({
+  pull(stream) {
+   stream.enqueue(new TextEncoder().encode(JSON.stringify({
+    access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer"
+   })));
+   controller.abort();
+  },
+  cancel() { cancelled=true; }
+ });
+ await assert.rejects(exchangeCallback({
+  transaction,callbackUrl:redirectUri+"?code=valid&state="+transaction.state,
+  signal:controller.signal,
+  fetcher:async()=>new Response(responseBody,{status:200})
+ }),/oauth_exchange_aborted/);
+ assert.equal(cancelled,true);
+});
