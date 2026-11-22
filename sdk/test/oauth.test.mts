@@ -512,3 +512,24 @@ test("stored authorization rejects silently discarded or modified PKCE writes",a
   }),/oauth_transaction_not_persisted/);
  }
 });
+
+
+test("concurrent stored authorizations preserve the first pending PKCE transaction",async()=>{
+ const registration={issuer,clientId:"public-app",redirectUri};
+ const entries=new Map<string,string>();
+ const storage={
+  getItem:(key:string)=>entries.get(key)??null,
+  setItem:(key:string,value:string)=>{entries.set(key,value);},
+ };
+ const results=await Promise.allSettled([
+  beginStoredAuthorization({registration,storage,storageKey:"oauth:tab"}),
+  beginStoredAuthorization({registration,storage,storageKey:"oauth:tab"}),
+ ]);
+ const fulfilled=results.filter(r=>r.status==="fulfilled");
+ const rejected=results.filter(r=>r.status==="rejected");
+ assert.equal(fulfilled.length,1);
+ assert.equal(rejected.length,1);
+ assert.match(String((rejected[0] as PromiseRejectedResult).reason),/oauth_transaction_already_pending/);
+ const pending=JSON.parse(entries.get("oauth:tab")!);
+ assert.equal(new URL((fulfilled[0] as PromiseFulfilledResult<{authorizationUrl:string}>).value.authorizationUrl).searchParams.get("state"),pending.state);
+});
