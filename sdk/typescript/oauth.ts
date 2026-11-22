@@ -280,6 +280,9 @@ export async function beginStoredAuthorization(input: {
   // A storage exception must prevent the redirect, never fall back to an
   // authorization request with an unpersisted state/verifier.
   const serialized = JSON.stringify(transaction);
+  // Another authorization may have started while WebCrypto was hashing PKCE.
+  // Recheck immediately before writing so concurrent starts cannot replace state.
+  if (input.storage.getItem(input.storageKey) !== null) throw Error("oauth_transaction_already_pending");
   input.storage.setItem(input.storageKey, serialized);
   // Some storage adapters silently discard writes. Never navigate unless the
   // exact verifier and state can be recovered by the callback handler.
