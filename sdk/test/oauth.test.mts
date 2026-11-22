@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { webcrypto } from "node:crypto";
+import { webcrypto, createHash } from "node:crypto";
 import { beginAuthorization, exchangeCallback, exchangeTrustedCallback, exchangeStoredCallback, beginStoredAuthorization } from "../typescript/oauth.ts";
 if (!globalThis.crypto) Object.defineProperty(globalThis,"crypto",{value:webcrypto});
 const issuer="https://example.supabase.co/auth/v1",redirectUri="https://app.example/callback";
@@ -14,6 +14,9 @@ test("creates S256 PKCE request with cryptographic state",async()=>{
  assert.match(url.searchParams.get("code_challenge")??"",/^[A-Za-z0-9_-]{43}$/);
  assert.match(transaction.verifier,/^[A-Za-z0-9_-]{43}$/);
  assert.notEqual(transaction.state,transaction.verifier);
+ const expectedChallenge=createHash("sha256").update(transaction.verifier,"utf8").digest("base64url");
+ assert.equal(url.searchParams.get("code_challenge"),expectedChallenge);
+ assert.equal(url.searchParams.get("state"),transaction.state);
 });
 test("rejects state mismatch without contacting token endpoint",async()=>{
  const {transaction}=await beginAuthorization({issuer,clientId:"app",redirectUri});
