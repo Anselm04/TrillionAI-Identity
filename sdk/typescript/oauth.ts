@@ -209,12 +209,17 @@ export async function exchangeCallback(input: {
   let bytes = 0;
   try {
     while (true) {
+      // Custom fetch adapters may ignore AbortSignal. Check both before and
+      // after each awaited read to prevent processing tokens after cancellation.
+      if (input.signal?.aborted) throw Error("oauth_exchange_aborted");
       const chunk = await reader.read();
+      if (input.signal?.aborted) throw Error("oauth_exchange_aborted");
       if (chunk.done) break;
       bytes += chunk.value.byteLength;
       if (bytes > 65536) throw Error("oauth_token_response_too_large");
       body += decoder.decode(chunk.value, { stream: true });
     }
+    if (input.signal?.aborted) throw Error("oauth_exchange_aborted");
     body += decoder.decode();
   } catch (error) {
     // Abort the unread response body on size or decoding failures so an
