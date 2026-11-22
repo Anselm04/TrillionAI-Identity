@@ -641,3 +641,12 @@ test("propagates caller AbortSignal through trusted and stored OAuth exchanges",
  assert.equal(calls,2);
  assert.equal(entries.size,0);
 });
+
+test("rejects oversized issuer-returned scope without accepting tokens", async () => {
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const callbackUrl=redirectUri+"?code=valid&state="+transaction.state;
+ const fetcher=async () => new Response(JSON.stringify({
+   access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer",scope:"a".repeat(1025)
+ }),{status:200});
+ await assert.rejects(exchangeCallback({transaction,callbackUrl,fetcher}),/invalid_scope/);
+});
