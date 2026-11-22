@@ -609,3 +609,10 @@ test("oversized token response cancels unread stream without returning credentia
  }),/oauth_token_response_too_large/);
  assert.equal(cancelled,true);
 });
+
+
+test("bounds requested OAuth scope before constructing authorization URL", async () => {
+ await assert.rejects(beginAuthorization({issuer,clientId:"public-app",redirectUri,scope:"a".repeat(1025)}),/invalid_oauth_scope/);
+ const valid=await beginAuthorization({issuer,clientId:"public-app",redirectUri,scope:"a".repeat(1024)});
+ assert.equal(new URL(valid.authorizationUrl).searchParams.get("scope"),"a".repeat(1024));
+});
