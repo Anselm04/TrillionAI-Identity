@@ -183,6 +183,9 @@ export async function exchangeCallback(input: {
   if (callback.searchParams.has("error")) throw Error("oauth_authorization_denied");
   const codes = callback.searchParams.getAll("code");
   if (codes.length !== 1 || !codes[0] || codes[0].length > 4096 || !/^[\x21-\x7E]+$/.test(codes[0])) throw Error("invalid_authorization_code");
+  // A cancelled host operation must not initiate a token exchange, even when
+  // a custom fetch adapter does not implement AbortSignal semantics.
+  if (input.signal?.aborted) throw Error("oauth_exchange_aborted");
   const issuer = issuerUrl(t.issuer);
   const tokenEndpoint = new URL(issuer.href.replace(/\/$/, "") + "/oauth/token");
   const response = await (input.fetcher ?? fetch)(tokenEndpoint, {
