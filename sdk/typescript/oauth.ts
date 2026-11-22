@@ -204,6 +204,11 @@ export async function exchangeCallback(input: {
       body += decoder.decode(chunk.value, { stream: true });
     }
     body += decoder.decode();
+  } catch (error) {
+    // Abort the unread response body on size or decoding failures so an
+    // untrusted issuer cannot continue streaming after rejection.
+    try { await reader.cancel(); } catch { /* Preserve the original error. */ }
+    throw error;
   } finally {
     reader.releaseLock();
   }
