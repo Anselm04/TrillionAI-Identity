@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
-import { beginAuthorization, exchangeCallback, exchangeTrustedCallback, exchangeStoredCallback } from "../typescript/oauth.ts";
+import { beginAuthorization, exchangeCallback, exchangeTrustedCallback, exchangeStoredCallback, beginStoredAuthorization } from "../typescript/oauth.ts";
 if (!globalThis.crypto) Object.defineProperty(globalThis,"crypto",{value:webcrypto});
 const issuer="https://example.supabase.co/auth/v1",redirectUri="https://app.example/callback";
 test("creates S256 PKCE request with cryptographic state",async()=>{
@@ -469,4 +469,30 @@ test("stored callback rejects oversized persisted transactions and consumes them
  }),/oauth_transaction_too_large/);
  assert.equal(entries.size,0);
  assert.equal(requests,0);
+});
+
+test("stored authorization persists PKCE before returning a redirect and refuses overwrite",async()=>{
+ const records=new Map<string,string>();
+ const storage={
+  getItem:(key:string)=>records.get(key)??null,
+  setItem:(key:string,value:string)=>{records.set(key,value);},
+ };
+ const registration={issuer,clientId:"public-app",redirectUri};
+ const {authorizationUrl}=await beginStoredAuthorization({registration,storage,storageKey:"oauth:tab"});
+ const transaction=JSON.parse(records.get("oauth:tab")!);
+ assert.equal(new URL(authorizationUrl).searchParams.get("state"),transaction.state);
+ await assert.rejects(beginStoredAuthorization({registration,storage,storageKey:"oauth:tab"}),/oauth_transaction_already_pending/);
+ assert.equal(JSON.parse(records.get("oauth:tab")!).state,transaction.state);
+});
+test("stored authorization fails closed when browser storage rejects persistence",async()=>{
+ const registration={issuer,clientId:"public-app",redirectUri};
+ await assert.rejects(beginStoredAuthorization({
+  registration,storage:{
+   getItem:()=>null,
+   setItem:()=>{throw Error("storage_quota_exceeded");},
+  },storageKey:"oauth:tab"
+ }),/storage_quota_exceeded/);
+ await assert.rejects(beginStoredAuthorization({
+  registration,storage:{getItem:()=>null,setItem:()=>{}},storageKey:""
+ }),/invalid_oauth_storage/);
 });
