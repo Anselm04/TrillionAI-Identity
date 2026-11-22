@@ -231,7 +231,12 @@ export async function exchangeCallback(input: {
   }
   let payload: unknown;
   try { payload = JSON.parse(body); } catch { throw Error("invalid_token_response"); }
-  return oauthResponse(payload);
+  // A custom adapter may ignore cancellation after the final stream read.
+  // Do not hand credentials to the caller once cancellation was requested.
+  if (input.signal?.aborted) throw Error("oauth_exchange_aborted");
+  const tokens = oauthResponse(payload);
+  if (input.signal?.aborted) throw Error("oauth_exchange_aborted");
+  return tokens;
 }
 
 /**
