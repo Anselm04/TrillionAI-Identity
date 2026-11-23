@@ -18,6 +18,38 @@ class IdentityApi {
   IdentityApi(this.client);
   final SupabaseClient client;
 
+  /// Unauthenticated endpoints only; never attaches an existing session token.
+  Future<Map<String, dynamic>> publicPost(String path, Object body) async {
+    const allowedPaths = {'/auth/passwordless/email'};
+    if (!allowedPaths.contains(path)) throw ArgumentError('Unsupported public API path');
+    final base = Uri.parse(apiUrl);
+    if (base.scheme != 'https' &&
+        !(base.scheme == 'http' &&
+          const ['localhost', '127.0.0.1', '10.0.2.2'].contains(base.host))) {
+      throw StateError('Identity API requires HTTPS outside local development.');
+    }
+    final req = http.Request('POST', base.resolve(path));
+    req.followRedirects = false;
+    req.headers['Content-Type'] = 'application/json';
+    req.body = jsonEncode(body);
+    final response = await http.Response.fromStream(
+      await req.send().timeout(const Duration(seconds: 20)));
+    Map<String, dynamic> data = {};
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) data = decoded;
+    } catch (_) {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        throw StateError('Invalid identity API response.');
+      }
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw IdentityRequestException(response.statusCode,
+        data['error']?.toString() ?? 'Request failed', data);
+    }
+    return data;
+  }
+
   Future<Map<String, dynamic>> request(String method, String path,
       [Object? body]) async {
     final started = client.auth.currentSession;
