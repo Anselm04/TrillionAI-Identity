@@ -15,6 +15,11 @@ begin
  if original_case is null then raise exception 'legacy case was lost'; end if;
  if (select count(*) from public.identity_mfa_recovery_case_reviews
     where case_id=original_case)<>1 then raise exception 'legacy review was lost'; end if;
+ raise notice 'INTAKE DEBUG sessionActive=%, existingCase=%, role=%',
+   public.identity_session_active(claimant,user_session),
+   (select count(*) from public.identity_mfa_recovery_cases
+     where user_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' and status='pending'),
+   (select role from public.identity_global_roles where user_id=claimant);
  if public.identity_request_mfa_recovery(claimant,user_session,'customer') is distinct from true
     then raise exception 'pending replay failed'; end if;
  if (select count(*) from public.identity_mfa_recovery_cases
