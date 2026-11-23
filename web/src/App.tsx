@@ -203,6 +203,12 @@ export default function App(){
       <Field label="Six-digit authenticator code" value={code} onChange={setCode}/>
       <button disabled={busy}>Verify</button></form>
       <p className="muted">Use a backup authenticator if your primary device is unavailable. Password recovery does not disable MFA.</p>
+      <button disabled={busy} className="secondary" onClick={()=>void submit(async()=>{
+        const result=await api<{requested:boolean}>("/account/mfa/recovery-request","POST",{});
+        if(!result.ok)throw Error(result.error);
+        setMessage("Lost-factor request recorded. Your account remains protected. No MFA reset has been approved.");
+      })}>I lost access to every authenticator</button>
+      <p className="muted">This records a security review request only. It cannot unlock the account or reset an owner's MFA.</p>
       <button className="secondary" onClick={()=>void signOut()}>Sign out</button></section>:
     !profile?<section><p role="status">Checking verified account access.</p><button onClick={()=>void reload()}>Retry</button><button className="secondary" onClick={()=>void signOut()}>Sign out</button></section>:
     <><p>Signed in as {session.user.email}</p><button className="secondary" onClick={()=>void signOut()}>Sign out</button>

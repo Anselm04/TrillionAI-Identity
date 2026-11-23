@@ -341,6 +341,15 @@ class _IdentityScreenState extends State<IdentityScreen> {
     ]),
   ]);
 
+  Future<void> reportLostAuthenticators() => perform(() async {
+    final response = await api.request('POST', '/account/mfa/recovery-request', {});
+    if (response['requested'] != true) {
+      throw StateError('Recovery intake was not confirmed.');
+    }
+    if (mounted) setState(() =>
+      message = 'Lost-factor request recorded. Your account remains protected; MFA was not reset.');
+  });
+
   Widget mfaForm() => Column(children: [
     const Text('Enter the six-digit code from your authenticator app.'),
     if (verifiedFactorIds.length > 1)
@@ -359,6 +368,9 @@ class _IdentityScreenState extends State<IdentityScreen> {
     FilledButton(onPressed: busy || factorId == null ? null : () => verifyMfa(factorId!),
       child: const Text('Verify authenticator')),
     const Text('Use your backup authenticator if the primary device is lost. Password recovery does not disable MFA.'),
+    OutlinedButton(onPressed: busy ? null : reportLostAuthenticators,
+      child: const Text('I lost access to every authenticator')),
+    const Text('This records a security-review request only. It does not unlock the account or reset MFA.'),
     TextButton(onPressed: () => perform(() async {
       await supabase.auth.signOut(); await checkMfa();
     }), child: const Text('Sign out')),
