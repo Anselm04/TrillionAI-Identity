@@ -7,10 +7,11 @@ import { DeletionReadiness } from "./DeletionReadiness";
 import { BillingCheckout } from "./BillingCheckout";
 import { TeamAdministration } from "./TeamAdministration";
 import { OrganisationInvitations } from "./OrganisationInvitations";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { api } from "./api";
+import { RequestGeneration } from "./request-generation";
 import { SignUpForm } from "./vendor/supabase/sign-up-form";
 import { LoginForm } from "./vendor/supabase/login-form";
 import { UpdatePasswordForm } from "./vendor/supabase/update-password-form";
@@ -41,24 +42,32 @@ export default function App(){
   const [subscriptions,setSubscriptions]=useState<Subscription[]|null>(null);
   const [sessionInventoryRevision,setSessionInventoryRevision]=useState(0);
   const [name,setName]=useState("");
+  const accountReload=useRef(new RequestGeneration());
   useEffect(()=>{
     let active=true;
     const {data:{subscription}}=supabase.auth.onAuthStateChange((event,current)=>{
       if(!active)return;
+      if(event==="SIGNED_OUT" || event==="SIGNED_IN"){
+        accountReload.current.invalidate();
+        setProfile(null);
+        setSubscriptions(null);
+      }
       setSession(current);
       if(event==="PASSWORD_RECOVERY")setMode("recover");
       if(event==="SIGNED_OUT"){setProfile(null);setFactor(null);setFactorIds([]);setAssurance(null);setMfaPending(false);setSubscriptions(null);setEnrolling(null);setName("");setCode("");setPassword("");setCurrentPassword("");setConfirm("");setMode("normal");}
     });
     void supabase.auth.getSession().then(({data})=>{if(active){setSession(data.session);setReady(true);}});
-    return ()=>{active=false;subscription.unsubscribe();};
+    return ()=>{active=false;accountReload.current.invalidate();subscription.unsubscribe();};
   },[]);
   async function reload(){
+    const ticket=accountReload.current.begin();
     setMessage("");
     const [me, aal, factors]=await Promise.all([
       api<Profile|{mfa_required:true;mfa_factor_id:string}>("/me"),
       supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
       supabase.auth.mfa.listFactors()
     ]);
+    if(!accountReload.current.isCurrent(ticket))return;
     if(!me.ok){setProfile(null);setMessage(me.error);return;}
     if(aal.error || factors.error){setProfile(null);setMessage("Account security check unavailable. Please retry.");return;}
     const ids = verifiedTotpFactorIds(factors.data?.totp ?? []);
