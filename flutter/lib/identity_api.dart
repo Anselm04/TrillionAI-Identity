@@ -93,15 +93,29 @@ class IdentityApi {
     if (body != null) req.body = jsonEncode(body);
     final response = await http.Response.fromStream(
         await req.send().timeout(const Duration(seconds: 20)));
-    final decoded = response.statusCode == 204 && response.body.trim().isEmpty ? <String,dynamic>{} : jsonDecode(response.body);
-    final data = decoded is Map<String, dynamic>
-        ? decoded : <String, dynamic>{};
-    // Discard late response data after sign-out or a different login session.
-    // Supabase Auth remains solely responsible for refreshing credentials.
+    // Never parse or expose a response from a superseded authentication session.
+    // A logout or account switch can occur while the HTTP request is in flight.
     final latest = client.auth.currentSession;
     if (!sameIdentitySession(token, started?.user.id,
         latest?.accessToken, latest?.user.id)) {
       throw StateError('Session changed. Please retry.');
+    }
+    Map<String, dynamic> data;
+    try {
+      if (response.statusCode == 204 && response.body.trim().isEmpty) {
+        data = <String, dynamic>{};
+      } else {
+        final decoded = jsonDecode(response.body);
+        if (decoded is! Map<String, dynamic>) {
+          throw const FormatException('Expected JSON object');
+        }
+        data = decoded;
+      }
+    } on FormatException {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        throw StateError('Invalid identity API response.');
+      }
+      data = <String, dynamic>{};
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw IdentityRequestException(response.statusCode,
