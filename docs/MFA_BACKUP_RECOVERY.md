@@ -35,3 +35,24 @@ Reference bases: the repository's Supabase and Appwrite read-only reference libr
 - The primary key on `user_id` prevents repeat requests from generating new cases; the application limiter bounds repeated endpoint calls.
 - Pending cases remain pending; there is intentionally **no** public review, approval, token generation, account reset, direct factor-management, or special owner bypass.
 - Approval, if engineered separately, must implement explicit reviewer separation, tamper-resistant review evidence, fail-closed state transitions, and independently enforceable provider-side MFA changes. Offline CI does not certify production migration behavior.
+
+## Owner-only review queue
+
+The recovery intake can be inspected, **not approved**, using
+`GET /owner/mfa-recovery/requests?limit=25&after=<user_uuid>`.
+The endpoint requires Identity's existing `guard("owner")`, which verifies the
+Supabase bearer, active non-revoked session, owner role, AAL2 and a fresh
+timestamped TOTP authentication event. It never accepts an arbitrary role,
+user ID, status filter or provider factor ID from the browser.
+
+- Pending cases are paginated with a stable UUID cursor, at most 50 cases per
+  request. The API exposes only the user ID, role recorded at intake and
+  creation time.
+- The `RecoveryReview` web component is visible only to the owner; server
+  authorization remains mandatory for every request. No recovery secrets,
+  email addresses, tokens or MFA factor identifiers are returned.
+- This is read-only. There is deliberately no approve, dismiss, unlock,
+  credential-reissue or provider MFA unenrollment operation.
+- The migration that creates `identity_mfa_recovery_requests` must be deployed
+  separately with owner authorization before this queue can operate. Offline
+  unit tests cannot certify database RLS or provider integration.
