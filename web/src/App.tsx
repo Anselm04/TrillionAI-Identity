@@ -12,6 +12,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { api } from "./api";
 import { RequestGeneration } from "./request-generation";
+import { AccountOperationGate } from "./account-operation-gate";
 import { SignUpForm } from "./vendor/supabase/sign-up-form";
 import { LoginForm } from "./vendor/supabase/login-form";
 import { UpdatePasswordForm } from "./vendor/supabase/update-password-form";
@@ -43,12 +44,17 @@ export default function App(){
   const [sessionInventoryRevision,setSessionInventoryRevision]=useState(0);
   const [name,setName]=useState("");
   const accountReload=useRef(new RequestGeneration());
+  const accountOperations=useRef(new AccountOperationGate());
+  const subscriptionsReload=useRef(new RequestGeneration());
   useEffect(()=>{
     let active=true;
     const {data:{subscription}}=supabase.auth.onAuthStateChange((event,current)=>{
       if(!active)return;
       if(event==="SIGNED_OUT" || event==="SIGNED_IN"){
         accountReload.current.invalidate();
+        accountOperations.current.invalidate();
+        subscriptionsReload.current.invalidate();
+        setBusy(false);
         setProfile(null);
         setSubscriptions(null);
       }
@@ -57,7 +63,7 @@ export default function App(){
       if(event==="SIGNED_OUT"){setProfile(null);setFactor(null);setFactorIds([]);setAssurance(null);setMfaPending(false);setSubscriptions(null);setEnrolling(null);setName("");setCode("");setPassword("");setCurrentPassword("");setConfirm("");setMode("normal");}
     });
     void supabase.auth.getSession().then(({data})=>{if(active){setSession(data.session);setReady(true);}});
-    return ()=>{active=false;accountReload.current.invalidate();subscription.unsubscribe();};
+    return ()=>{active=false;accountReload.current.invalidate();accountOperations.current.invalidate();subscriptionsReload.current.invalidate();subscription.unsubscribe();};
   },[]);
   async function reload(){
     const ticket=accountReload.current.begin();
@@ -88,7 +94,15 @@ export default function App(){
     }
   }
   useEffect(()=>{if(session?.access_token && mode!=="recover"){void reload();}},[session?.access_token,mode]);
-  async function submit(fn:()=>Promise<void>){setBusy(true);setMessage("");try{await fn();}catch(e){setMessage(e instanceof Error?e.message:"Request failed");}finally{setBusy(false);}}
+  async function submit(fn:(current:()=>boolean)=>Promise<void>){
+    const ticket=accountOperations.current.begin();
+    if(ticket===null)return;
+    const current=()=>accountOperations.current.current(ticket);
+    setBusy(true);setMessage("");
+    try{await fn(current);}
+    catch(e){if(current())setMessage(e instanceof Error?e.message:"Request failed");}
+    finally{if(accountOperations.current.finish(ticket))setBusy(false);}
+  }
   async function requestEmail(e:FormEvent){e.preventDefault();await submit(async()=>{
     const address=email.trim();
     if(page==="forgot"){
@@ -160,8 +174,11 @@ export default function App(){
     });
   }
   async function loadSubscriptions(){
+    const ticket=subscriptionsReload.current.begin();
     const r=await api<{subscriptions:Subscription[]}>("/account/subscriptions");
-    if(r.ok)setSubscriptions(r.data.subscriptions);else setMessage(r.error);
+    if(!subscriptionsReload.current.isCurrent(ticket))return;
+    if(r.ok && Array.isArray(r.data.subscriptions))setSubscriptions(r.data.subscriptions);
+    else setMessage(r.ok?"Invalid subscriptions response":r.error);
   }
   async function exportData(){await submit(async()=>{
     const r=await api<Record<string,unknown>>("/account/export");
@@ -251,7 +268,13 @@ export default function App(){
         </form>
       </section>}
       <section><h2>Profile</h2><Field label="Display name" value={name} onChange={setName}/>
-        <button onClick={()=>submit(async()=>{const r=await api("/account/profile","PATCH",{display_name:name});if(!r.ok)throw Error(r.error);setMessage("Profile saved");})}>Save profile</button></section>
+        <button onClick={()=>void submit(async(current)=>{
+          const displayName=name;
+          const r=await api("/account/profile","PATCH",{display_name:displayName});
+          if(!current())return;
+          if(!r.ok)throw Error(r.error);
+          setMessage("Profile saved");
+        })}>Save profile</button></section>
       <section><h2>Change email</h2><p>New email must be verified.</p>
         <button onClick={()=>submit(async()=>{
           const next=window.prompt("New email");if(!next)return;
@@ -263,13 +286,13 @@ export default function App(){
         <Field label="New password (12+ characters)" type="password" value={password} onChange={setPassword}/>
         <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm}/>
         <button disabled={busy}>Update password</button></form></section>
-      <section><h2>Subscription management</h2><BillingCheckout key={"billing:"+session.user.id}/><button onClick={loadSubscriptions}>View subscriptions</button>
+      <section><h2>Subscription management</h2><BillingCheckout key={"billing:"+session.user.id}/><button disabled={busy} onClick={()=>void loadSubscriptions()}>View subscriptions</button>
         {subscriptions?.length===0&&<p>No subscriptions reported.</p>}
         {subscriptions?.map(s=><div key={s.id} className="box"><b>{s.plan}</b> — {s.amountLabel}<p>{s.status==="cancelled"?"Cancelled":"Renews "+(s.renewsAt??"unknown")}</p>
-          {s.status!=="cancelled"&&(s.store==="direct"?<button onClick={()=>cancelSubscription(s)}>Cancel subscription</button>:<p>Manage through {s.store}: {s.manageUrl&&<a href={s.manageUrl}>Subscription settings</a>}</p>)}</div>)}</section>
+          {s.status!=="cancelled"&&(s.store==="direct"?<button disabled={busy} onClick={()=>void cancelSubscription(s)}>Cancel subscription</button>:<p>Manage through {s.store}: {s.manageUrl&&<a href={s.manageUrl}>Subscription settings</a>}</p>)}</div>)}</section>
       <section><h2>Your data</h2><button onClick={exportData}>Export data</button></section>
       <section><h2>Delete account</h2><DeletionReadiness key={session.user.id}/><p>Permanent deletion must first verify that connected subscriptions are cancelled and product data is removed.</p>
-        <button className="danger" onClick={deleteAccount}>Delete my account</button></section>
+        <button className="danger" disabled={busy} onClick={()=>void deleteAccount()}>Delete my account</button></section>
     </>}
   </main>;
 }
