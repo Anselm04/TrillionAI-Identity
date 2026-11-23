@@ -73,7 +73,7 @@ const explanations: Record<Assessment["status"],string> = {
   independent_review_recorded:"Independent review records satisfy the evidence-assessment threshold. This is NOT recovery authorization.",
   owner_recovery_requires_external_governance:"An owner cannot review their own case. Owner recovery requires a separate external governance process.",
 };
-function RecoveryAssessment({caseId}:{caseId:string}) {
+function RecoveryAssessment({caseId,isOwner}:{caseId:string;isOwner:boolean}) {
   const [result,setResult]=useState<Assessment|null>(null);
   const [status,setStatus]=useState("");
   const [busy,setBusy]=useState(false);
@@ -89,16 +89,33 @@ function RecoveryAssessment({caseId}:{caseId:string}) {
       setResult(response.data);
     } finally {setBusy(false);}
   }
+  async function reject(){
+    if(busy||!isOwner||result?.status!=="evidence_disputed")return;
+    if(!window.confirm("Reject and close this disputed recovery request? Account access and MFA will not change."))return;
+    setBusy(true);setStatus("");
+    try {
+      const response=await api<{closed:boolean;decision:string;authorizationGranted:boolean;mfaChanged:boolean}>(
+        "/owner/mfa-recovery/requests/"+encodeURIComponent(caseId)+"/reject","POST",{confirm:"REJECT"});
+      if(!response.ok){setStatus(response.error);return;}
+      if(!response.data.closed||response.data.decision!=="rejected"||
+        response.data.authorizationGranted!==false||response.data.mfaChanged!==false){
+        setStatus("Unexpected closure response. Inspect the case status before retrying.");return;
+      }
+      setResult(null);setStatus("Case rejected and closed. No MFA or account access changes were made.");
+    }finally {setBusy(false);}
+  }
   return <div>
     <button className="secondary" disabled={busy} onClick={()=>void check()}>Check independent review status</button>
     {result&&<p role="status">{explanations[result.status]} Verified reviewer count: {result.independentReviewCount}. No account access or MFA reset is authorized.</p>}
-    {status&&<p role="alert">{status}</p>}
+    {isOwner&&result?.status==="evidence_disputed"&&
+      <button className="danger" disabled={busy} onClick={()=>void reject()}>Reject disputed case (no MFA changes)</button>}
+    {status&&<p role="status">{status}</p>}
   </div>;
 }
 
 /** Reviewer queue is restricted by the API to privileged fresh-MFA sessions. */
 
-export function RecoveryReview() {
+export function RecoveryReview({isOwner}:{isOwner:boolean}) {
   const [cases,setCases]=useState<RecoveryCase[]>([]);
   const [cursor,setCursor]=useState<string|null>(null);
   const [nextCursor,setNextCursor]=useState<string|null>(null);
@@ -126,7 +143,7 @@ export function RecoveryReview() {
       <p>Role recorded at request: {item.requested_role}</p>
       <p>Requested: {new Date(item.created_at).toLocaleString()}</p>
       <ReviewAttestation caseId={item.user_id}/>
-      <RecoveryAssessment caseId={item.user_id}/>
+      <RecoveryAssessment caseId={item.user_id} isOwner={isOwner}/>
     </div>)}
     {loaded&&cursor!==null&&<button className="secondary" disabled={busy} onClick={()=>void load()}>First page</button>}
     {loaded&&nextCursor&&<button className="secondary" disabled={busy} onClick={()=>void load(nextCursor)}>Next page</button>}
