@@ -30,3 +30,11 @@ Appwrite Teams/Http/Memberships/XList.php blob 18b3698ebf7fbb67644ad42a1ba5b0103
 
 ## Tenant membership mutation
 Inspected Appwrite Memberships/Update.php (1c2d0998c4a2d2c0544027283e07eeb7d94b5932) and Delete.php (e9734dbe9430adaf3a40f54e6d2909e31939720f), BSD-3-Clause. Adapted tenant row lock, tenant-scoped actor/target authorization and last-active-owner rollback using an invoker RPC. Admin cannot manage owners or other admins; invitation acceptance is separate. SQL changes not applied or integration-tested. Account deletion cascade requires additional last-owner protection.
+
+## Standing owner direction — reference-first on every Identity change (23 November 2026)
+Reference-first source inspection is mandatory before implementation and review, not an optional planning exercise. Inspect actual revisioned source in the owner's Supabase, Appwrite, OpenID Client or other appropriate licensed reference repositories; prefer tested patterns compatible with Supabase Auth over rewriting a second identity provider. Trace the exact upstream file, reason for adaptation, license and local verification. Preserve no-paid-service, no-live-production and no-unapproved-database-migration constraints. Working upstream code does not certify the combined Identity implementation; run real project CI before merging.
+
+### Recovery rejection — source reuse record
+- Appwrite reference: `Anselm04/Appwrite-Source-Code-Reference/src/Appwrite/Platform/Modules/Account/Http/Account/MFA/Challenges/Update.php`. Inspected the DB row-lock + single-use challenge-consumption pattern and bounded identity verification; commercial attribution and BSD-3-Clause license are recorded earlier in this file. Adapted only the principle of atomic state change, using a PostgreSQL invoker-rights RPC. No PHP copied.
+- Supabase reference: `Anselm04/Supabase-Source-Code-Reference/apps/docs/content/guides/auth/auth-mfa.mdx`; MFA factor management must be enforced beyond UI. Supabase Auth remains the sole provider. A rejection does not use a provider MFA API and cannot affect session assurance.
+- Exact target: `supabase/migrations/20261123000003_identity_mfa_recovery_rejections.sql`, `backend/src/mfa-recovery-rejection.ts`, `backend/src/server.ts`, `web/src/RecoveryReview.tsx` with policy tests. Any SQL deployment remains separately authorized.
