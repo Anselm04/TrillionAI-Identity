@@ -101,7 +101,7 @@ function oauthResponse(data: unknown): OAuthTokens {
   if (typeof t.access_token !== "string" || !t.access_token.trim() || /[\s\x00-\x1f\x7f-\x9f]/u.test(t.access_token) ||
       typeof t.expires_in !== "number" || !Number.isSafeInteger(t.expires_in) || t.expires_in <= 0 ||
       typeof t.token_type !== "string" || t.token_type.toLowerCase() !== "bearer") throw Error("invalid_token_response");
-  if (t.refresh_token !== undefined && (typeof t.refresh_token !== "string" || !t.refresh_token.trim() || /[\s\x00-\x1f\x7f-\x9f]/u.test(t.refresh_token))) throw Error("invalid_refresh_token");
+  if (t.refresh_token !== undefined && (typeof t.refresh_token !== "string" || !t.refresh_token.trim() || t.refresh_token.includes("\\") || /[\s\x00-\x1f\x7f-\x9f]/u.test(t.refresh_token))) throw Error("invalid_refresh_token");
   if (t.id_token !== undefined && (typeof t.id_token !== "string" || !t.id_token.trim() || /[\s\x00-\x1f\x7f-\x9f]/u.test(t.id_token))) throw Error("invalid_id_token");
   // Scope returned by the issuer must obey the same RFC 6749 token grammar.
   if (t.scope !== undefined && (typeof t.scope !== "string" || t.scope.length > 1024 ||
