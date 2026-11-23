@@ -17,7 +17,7 @@ export type OAuthTransaction = Readonly<{
 
 export type OAuthTokens = Readonly<{
   access_token: string;
-  refresh_token: string;
+  refresh_token?: string;
   token_type: "bearer";
   expires_in: number;
   id_token?: string;
@@ -99,14 +99,15 @@ function oauthResponse(data: unknown): OAuthTokens {
   if (!data || typeof data !== "object") throw Error("invalid_token_response");
   const t = data as Record<string, unknown>;
   if (typeof t.access_token !== "string" || !t.access_token.trim() || /[\s\x00-\x1f\x7f-\x9f]/u.test(t.access_token) ||
-      typeof t.refresh_token !== "string" || !t.refresh_token.trim() || /[\s\x00-\x1f\x7f-\x9f]/u.test(t.refresh_token) ||
       typeof t.expires_in !== "number" || !Number.isSafeInteger(t.expires_in) || t.expires_in <= 0 ||
       typeof t.token_type !== "string" || t.token_type.toLowerCase() !== "bearer") throw Error("invalid_token_response");
+  if (t.refresh_token !== undefined && (typeof t.refresh_token !== "string" || !t.refresh_token.trim() || /[\s\x00-\x1f\x7f-\x9f]/u.test(t.refresh_token))) throw Error("invalid_refresh_token");
   if (t.id_token !== undefined && (typeof t.id_token !== "string" || !t.id_token.trim() || /[\s\x00-\x1f\x7f-\x9f]/u.test(t.id_token))) throw Error("invalid_id_token");
   // Scope returned by the issuer must obey the same RFC 6749 token grammar.
   if (t.scope !== undefined && (typeof t.scope !== "string" || t.scope.length > 1024 ||
       !/^[\x21\x23-\x5B\x5D-\x7E]+(?: [\x21\x23-\x5B\x5D-\x7E]+)*$/.test(t.scope))) throw Error("invalid_scope");
-  return {access_token:t.access_token,refresh_token:t.refresh_token,
+  return {access_token:t.access_token,
+    ...(typeof t.refresh_token==="string"?{refresh_token:t.refresh_token}:{}),
     token_type:"bearer",expires_in:t.expires_in,
     ...(typeof t.id_token==="string"?{id_token:t.id_token}:{}),
     ...(typeof t.scope==="string"?{scope:t.scope}:{})};
