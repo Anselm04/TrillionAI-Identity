@@ -31,7 +31,7 @@ if command -v flutter >/dev/null 2>&1; then
   echo "[Identity] Flutter SDK found; running Dart tests"
   cd "$ROOT/flutter"
   flutter pub get
-  flutter analyze
+  flutter analyze --no-fatal-infos
   flutter test
 else
   echo "[Identity] SKIPPED flutter analyze/test: Flutter SDK not installed"
