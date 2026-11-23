@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { sameClientSession } from "./session-continuity";
 const apiUrl = import.meta.env.VITE_IDENTITY_API_URL ?? "http://localhost:3000";
 function endpoint(path: string): URL {
   const base = new URL(apiUrl);
@@ -23,6 +24,12 @@ export async function api<T=unknown>(path: string, method="GET", body?: unknown)
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
     const data = await response.json().catch(() => ({}));
+    // The network response may finish after logout/login or account switching.
+    // Supabase owns token refresh; allow rotation within the same session only.
+    const { data: latest } = await supabase.auth.getSession();
+    if (!sameClientSession(session.session, latest.session)) {
+      return { ok: false, status: 401, error: "Session changed. Please retry." };
+    }
     if (!response.ok) return { ok: false, status: response.status, error: data.error ?? "Request failed", data };
     return { ok: true, data: data as T };
   } catch { return { ok: false, status: 0, error: "Cannot reach the Identity server" }; }
