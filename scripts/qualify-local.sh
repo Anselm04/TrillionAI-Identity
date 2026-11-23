@@ -17,9 +17,14 @@ run_js() {
   fi
   npm ci --no-audit --no-fund
   npm run check
+  if [[ "$project" == "backend" ]]; then
+    npm run test:offline
+  fi
   npm test
   npm run build
 }
+echo "[Identity] Qualifying OAuth PKCE SDK"
+node --experimental-strip-types --test "$ROOT/sdk/test/oauth.test.mts"
 run_js backend
 run_js web
 if command -v flutter >/dev/null 2>&1; then
