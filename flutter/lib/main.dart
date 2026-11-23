@@ -329,10 +329,10 @@ class _IdentityScreenState extends State<IdentityScreen> {
     final address=email.text.trim().toLowerCase();
     if(!address.contains('@'))throw StateError('Enter a valid email.');
     try {
-      await supabase.auth.signInWithOtp(email:address,shouldCreateUser:false,
-        emailRedirectTo:redirectUrl.isEmpty?null:redirectUrl);
-    } on AuthException catch(e) {
-      if(e.statusCode=='429'||(int.tryParse(e.statusCode??'')??500)>=500)rethrow;
+      await api.publicPost('/auth/passwordless/email', {'email': address});
+    } on IdentityRequestException catch (e) {
+      if (e.status == 429) throw StateError('Too many requests. Try again later.');
+      throw StateError('Email delivery unavailable. Try again later.');
     }
     if(mounted)setState((){passwordlessEmail=address;passwordlessCode.clear();message='If eligible, check your email for a sign-in link or code.';});
   });
