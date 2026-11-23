@@ -26,3 +26,29 @@ export function authenticatedIdentityTokenAudience(token: string, uid: string): 
     return false;
   }
 }
+
+
+/**
+ * Called only after Supabase Auth has validated the exact access token using
+ * getUser(token), and after its session ID has passed the active-session RPC.
+ * Supabase's issuer-signed `aal` and `amr` claims are then safe to consume;
+ * a detached anonymous Supabase client has no user session and must not be
+ * queried with getAuthenticatorAssuranceLevel() as if it accepted a token.
+ */
+export function authenticatedSessionAssurance(token: string, uid: string):
+  { aal: "aal1" | "aal2"; methods: unknown[] } | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3 || parts[1]!.length > 8192) return null;
+    const claims: unknown = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8"));
+    if (!claims || typeof claims !== "object") return null;
+    const data = claims as Record<string, unknown>;
+    if (data.sub !== uid || (data.aal !== "aal1" && data.aal !== "aal2") ||
+        !Array.isArray(data.amr)) return null;
+    // The token comes from Supabase Auth, not from request-body claims.
+    // Reject unexpected AMR structures rather than inventing step-up proof.
+    if (data.amr.length > 32 || data.amr.some(v => !v || typeof v !== "object" ||
+        Array.isArray(v))) return null;
+    return { aal: data.aal, methods: data.amr };
+  } catch { return null; }
+}
