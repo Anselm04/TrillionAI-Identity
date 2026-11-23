@@ -59,6 +59,43 @@ function ReviewAttestation({caseId}:{caseId:string}) {
   </form>;
 }
 
+type Assessment = {
+  status: "awaiting_independent_reviews"|"evidence_disputed"|"owner_reviewer_required"|
+    "independent_review_recorded"|"owner_recovery_requires_external_governance";
+  independentReviewCount: number;
+  unlockAuthorized: false;
+  mfaResetAuthorized: false;
+};
+const explanations: Record<Assessment["status"],string> = {
+  awaiting_independent_reviews:"Fewer than two eligible independent reviews are recorded.",
+  evidence_disputed:"At least one reviewer reported insufficient evidence. Further independent investigation is required.",
+  owner_reviewer_required:"Two reviewers exist, but none is a current owner.",
+  independent_review_recorded:"Independent review records satisfy the evidence-assessment threshold. This is NOT recovery authorization.",
+  owner_recovery_requires_external_governance:"An owner cannot review their own case. Owner recovery requires a separate external governance process.",
+};
+function RecoveryAssessment({caseId}:{caseId:string}) {
+  const [result,setResult]=useState<Assessment|null>(null);
+  const [status,setStatus]=useState("");
+  const [busy,setBusy]=useState(false);
+  async function check(){
+    if(busy)return;
+    setBusy(true);setStatus("");
+    try {
+      const response=await api<Assessment>("/admin/mfa-recovery/requests/"+encodeURIComponent(caseId)+"/assessment");
+      if(!response.ok){setStatus(response.error);return;}
+      if(response.data.unlockAuthorized!==false||response.data.mfaResetAuthorized!==false){
+        setStatus("Unexpected authorization response; do not proceed.");return;
+      }
+      setResult(response.data);
+    } finally {setBusy(false);}
+  }
+  return <div>
+    <button className="secondary" disabled={busy} onClick={()=>void check()}>Check independent review status</button>
+    {result&&<p role="status">{explanations[result.status]} Verified reviewer count: {result.independentReviewCount}. No account access or MFA reset is authorized.</p>}
+    {status&&<p role="alert">{status}</p>}
+  </div>;
+}
+
 /** Reviewer queue is restricted by the API to privileged fresh-MFA sessions. */
 
 export function RecoveryReview() {
@@ -89,6 +126,7 @@ export function RecoveryReview() {
       <p>Role recorded at request: {item.requested_role}</p>
       <p>Requested: {new Date(item.created_at).toLocaleString()}</p>
       <ReviewAttestation caseId={item.user_id}/>
+      <RecoveryAssessment caseId={item.user_id}/>
     </div>)}
     {loaded&&cursor!==null&&<button className="secondary" disabled={busy} onClick={()=>void load()}>First page</button>}
     {loaded&&nextCursor&&<button className="secondary" disabled={busy} onClick={()=>void load(nextCursor)}>Next page</button>}

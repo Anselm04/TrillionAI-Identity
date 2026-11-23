@@ -20,6 +20,7 @@ import { directBillingIsCancelled, storeSubscriptionsRequireAcknowledgement } fr
 import { canRequestLostMfaRecovery } from "./mfa-recovery.js";
 import { recoveryQueueQuery, recoveryQueuePage, type RecoveryQueueCase } from "./mfa-recovery-queue.js";
 import { recoveryReviewInput, mayAttestRecoveryReview } from "./mfa-recovery-review.js";
+import { assessmentCaseId, assessRecoveryEvidence } from "./mfa-recovery-assessment.js";
 
 export const app = express();
 app.disable("x-powered-by");
@@ -631,6 +632,42 @@ app.post("/admin/mfa-recovery/requests/:caseUserId/reviews",limiter,guard("admin
  if(error){res.status(503).json({error:"recovery_review_unavailable"});return;}
  if(data!==true){res.status(409).json({error:"recovery_review_rejected"});return;}
  res.status(201).json({recorded:true,authorizationGranted:false,mfaChanged:false});
+}));
+// Summarize independent review *evidence only*. This endpoint never approves
+// recovery or mutates an MFA factor. It rechecks CURRENT global roles of reviewers.
+app.get("/admin/mfa-recovery/requests/:caseUserId/assessment",guard("admin"),wrap(async(req,res)=>{
+ const caseId=assessmentCaseId.safeParse(req.params.caseUserId);
+ if(!caseId.success){res.status(400).json({error:"invalid_recovery_case"});return;}
+ const {data:caseRow,error:caseError}=await admin.from("identity_mfa_recovery_requests")
+   .select("requested_role,status").eq("user_id",caseId.data).maybeSingle();
+ if(caseError){res.status(503).json({error:"recovery_case_unavailable"});return;}
+ if(!caseRow||caseRow.status!=="pending"){res.status(404).json({error:"recovery_case_not_pending"});return;}
+ if(!["customer","admin","owner"].includes(caseRow.requested_role)){
+   res.status(503).json({error:"recovery_case_invalid"});return;
+ }
+ // Fetch one extra to fail closed on a truncated provider page.
+ const {data:reviewRows,error:reviewError}=await admin.from("identity_mfa_recovery_reviews")
+   .select("reviewer_id,review_outcome").eq("case_user_id",caseId.data)
+   .order("reviewer_id",{ascending:true}).limit(51);
+ if(reviewError||!Array.isArray(reviewRows)||reviewRows.length>50){
+   res.status(503).json({error:"recovery_reviews_unavailable"});return;
+ }
+ const reviewerIds=reviewRows.map(row=>row.reviewer_id);
+ let reviewerRoles:unknown[]=[];
+ if(reviewerIds.length){
+   const {data,error}=await admin.from("identity_global_roles")
+     .select("user_id,role").in("user_id",reviewerIds).limit(51);
+   if(error||!Array.isArray(data)||data.length>50){
+     res.status(503).json({error:"recovery_roles_unavailable"});return;
+   }
+   reviewerRoles=data;
+ }
+ try {
+   const assessment=assessRecoveryEvidence(caseId.data,caseRow.requested_role,reviewRows,reviewerRoles);
+   res.json(assessment);
+ } catch {
+   res.status(503).json({error:"recovery_assessment_unavailable"});
+ }
 }));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
