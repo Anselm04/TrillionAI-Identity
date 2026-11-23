@@ -17,6 +17,7 @@ import { hooks } from "./hooks.js";
 import { initializeStripeBilling } from "./stripe-bootstrap.js";
 import { cancelDirectSubscriptionVerified, BillingVerificationError } from "./billing.js";
 import { directBillingIsCancelled, storeSubscriptionsRequireAcknowledgement } from "./deletion.js";
+import { canRequestLostMfaRecovery } from "./mfa-recovery.js";
 
 export const app = express();
 app.disable("x-powered-by");
@@ -170,6 +171,23 @@ app.post("/auth/change-password", guard(), limiter, wrap(async (req, res) => {
   await audit("password_changed", p.uid);
   if (!logout.ok) { res.status(502).json({ error: "password_changed_session_revoke_unconfirmed" }); return; }
   res.json({ updated: true, signedOut: true });
+}));
+// An authenticated, verified identity at AAL1 can report loss of all MFA
+// factors, but this endpoint never changes MFA, roles, sessions or entitlements.
+// Any later decision must be implemented as a separate audited review process.
+app.post("/account/mfa/recovery-request", limiter, guard("customer", true), wrap(async (req, res) => {
+  const body = z.object({}).strict().safeParse(req.body ?? {});
+  if (!body.success) { res.status(400).json({error:"invalid_recovery_request"}); return; }
+  const p = principal(req);
+  if (!canRequestLostMfaRecovery({
+    role:p.role, sessionId:p.sessionId, emailConfirmed:true,
+    aal:p.aal, hasVerifiedTotp:Boolean(p.totpFactorId),
+  })) { res.status(409).json({error:"mfa_recovery_not_applicable"}); return; }
+  const {data,error} = await admin.rpc("identity_request_mfa_recovery", {
+    p_actor:p.uid,p_session:p.sessionId,p_role:p.role,
+  });
+  if (error || data !== true) { res.status(503).json({error:"recovery_intake_unavailable"}); return; }
+  res.status(202).json({requested:true,message:"Recovery request recorded. Access remains protected by MFA."});
 }));
 app.get("/me", guard("customer", true), (req, res) => {
   const p = principal(req);
