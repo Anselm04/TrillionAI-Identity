@@ -576,17 +576,17 @@ app.post("/v1/service-credentials/introspect",limiter,wrap(async(req,res)=>{
 app.get("/admin/mfa-recovery/requests",guard("admin"),wrap(async(req,res)=>{ const parsed=recoveryQueueQuery.safeParse(req.query);
  if(!parsed.success){res.status(400).json({error:"invalid_recovery_queue_query"});return;}
  const {after,limit}=parsed.data;
- let query=admin.from("identity_mfa_recovery_requests")
-   .select("user_id,requested_role,created_at")
+ let query=admin.from("identity_mfa_recovery_cases")
+   .select("case_id,user_id,case_version,requested_role,created_at")
    .eq("status","pending")
-   .order("user_id",{ascending:true})
+   .order("case_id",{ascending:true})
    .limit(limit+1);
- if(after)query=query.gt("user_id",after);
+ if(after)query=query.gt("case_id",after);
  const {data,error}=await query;
  if(error||!Array.isArray(data)){
    res.status(503).json({error:"recovery_queue_unavailable"});return;
  }
- const valid=data.every(row=>typeof row.user_id==="string"
+ const valid=data.every(row=>typeof row.case_id==="string" && typeof row.user_id==="string" && Number.isSafeInteger(row.case_version) && row.case_version>=1
    && ["customer","admin","owner"].includes(row.requested_role)
    && typeof row.created_at==="string");
  if(!valid){res.status(503).json({error:"recovery_queue_invalid"});return;}
@@ -596,17 +596,17 @@ app.get("/owner/mfa-recovery/requests",guard("owner"),wrap(async(req,res)=>{
  const parsed=recoveryQueueQuery.safeParse(req.query);
  if(!parsed.success){res.status(400).json({error:"invalid_recovery_queue_query"});return;}
  const {after,limit}=parsed.data;
- let query=admin.from("identity_mfa_recovery_requests")
-   .select("user_id,requested_role,created_at")
+ let query=admin.from("identity_mfa_recovery_cases")
+   .select("case_id,user_id,case_version,requested_role,created_at")
    .eq("status","pending")
-   .order("user_id",{ascending:true})
+   .order("case_id",{ascending:true})
    .limit(limit+1);
- if(after)query=query.gt("user_id",after);
+ if(after)query=query.gt("case_id",after);
  const {data,error}=await query;
  if(error||!Array.isArray(data)){
    res.status(503).json({error:"recovery_queue_unavailable"});return;
  }
- const valid=data.every(row=>typeof row.user_id==="string"
+ const valid=data.every(row=>typeof row.case_id==="string" && typeof row.user_id==="string" && Number.isSafeInteger(row.case_version) && row.case_version>=1
    && ["customer","admin","owner"].includes(row.requested_role)
    && typeof row.created_at==="string");
  if(!valid){res.status(503).json({error:"recovery_queue_invalid"});return;}
@@ -616,13 +616,17 @@ app.get("/owner/mfa-recovery/requests",guard("owner"),wrap(async(req,res)=>{
 // held verification evidence. It is NOT an approval, unlock or factor reset.
 // Guard enforces AAL2 + recent TOTP; database re-checks reviewer role, active
 // session, self-review and one-review-per-reviewer under a case-row lock.
-app.post("/admin/mfa-recovery/requests/:caseUserId/reviews",limiter,guard("admin"),wrap(async(req,res)=>{
- const caseId=z.string().uuid().safeParse(req.params.caseUserId);
+app.post("/admin/mfa-recovery/requests/:caseId/reviews",limiter,guard("admin"),wrap(async(req,res)=>{
+ const caseId=z.string().uuid().safeParse(req.params.caseId);
  const input=recoveryReviewInput.safeParse(req.body);
  if(!caseId.success||!input.success){res.status(400).json({error:"invalid_recovery_review"});return;}
+ const {data:caseRow,error:caseError}=await admin.from("identity_mfa_recovery_cases")
+   .select("user_id,status").eq("case_id",caseId.data).maybeSingle();
+ if(caseError){res.status(503).json({error:"recovery_case_unavailable"});return;}
+ if(!caseRow||caseRow.status!=="pending"){res.status(404).json({error:"recovery_case_not_pending"});return;}
  const p=principal(req);
  if(!mayAttestRecoveryReview({
-   reviewerId:p.uid,caseUserId:caseId.data,reviewerRole:p.role,
+   reviewerId:p.uid,caseUserId:caseRow.user_id,reviewerRole:p.role,
    reviewerSession:p.sessionId,aal:p.aal,recentMfaAt:p.recentMfaAt
  })){res.status(403).json({error:"recovery_review_forbidden"});return;}
  const {data,error}=await admin.rpc("identity_record_mfa_recovery_review",{
@@ -636,19 +640,19 @@ app.post("/admin/mfa-recovery/requests/:caseUserId/reviews",limiter,guard("admin
 }));
 // Summarize independent review *evidence only*. This endpoint never approves
 // recovery or mutates an MFA factor. It rechecks CURRENT global roles of reviewers.
-app.get("/admin/mfa-recovery/requests/:caseUserId/assessment",guard("admin"),wrap(async(req,res)=>{
- const caseId=assessmentCaseId.safeParse(req.params.caseUserId);
+app.get("/admin/mfa-recovery/requests/:caseId/assessment",guard("admin"),wrap(async(req,res)=>{
+ const caseId=assessmentCaseId.safeParse(req.params.caseId);
  if(!caseId.success){res.status(400).json({error:"invalid_recovery_case"});return;}
- const {data:caseRow,error:caseError}=await admin.from("identity_mfa_recovery_requests")
-   .select("requested_role,status").eq("user_id",caseId.data).maybeSingle();
+ const {data:caseRow,error:caseError}=await admin.from("identity_mfa_recovery_cases")
+   .select("user_id,requested_role,status").eq("case_id",caseId.data).maybeSingle();
  if(caseError){res.status(503).json({error:"recovery_case_unavailable"});return;}
  if(!caseRow||caseRow.status!=="pending"){res.status(404).json({error:"recovery_case_not_pending"});return;}
  if(!["customer","admin","owner"].includes(caseRow.requested_role)){
    res.status(503).json({error:"recovery_case_invalid"});return;
  }
  // Fetch one extra to fail closed on a truncated provider page.
- const {data:reviewRows,error:reviewError}=await admin.from("identity_mfa_recovery_reviews")
-   .select("reviewer_id,review_outcome").eq("case_user_id",caseId.data)
+ const {data:reviewRows,error:reviewError}=await admin.from("identity_mfa_recovery_case_reviews")
+   .select("reviewer_id,review_outcome").eq("case_id",caseId.data)
    .order("reviewer_id",{ascending:true}).limit(51);
  if(reviewError||!Array.isArray(reviewRows)||reviewRows.length>50){
    res.status(503).json({error:"recovery_reviews_unavailable"});return;
@@ -664,7 +668,7 @@ app.get("/admin/mfa-recovery/requests/:caseUserId/assessment",guard("admin"),wra
    reviewerRoles=data;
  }
  try {
-   const assessment=assessRecoveryEvidence(caseId.data,caseRow.requested_role,reviewRows,reviewerRoles);
+   const assessment=assessRecoveryEvidence(caseRow.user_id,caseRow.requested_role,reviewRows,reviewerRoles);
    res.json(assessment);
  } catch {
    res.status(503).json({error:"recovery_assessment_unavailable"});
@@ -673,13 +677,17 @@ app.get("/admin/mfa-recovery/requests/:caseUserId/assessment",guard("admin"),wra
 // Reject-and-close only. The database independently verifies that another
 // currently privileged reviewer previously recorded insufficient evidence.
 // No factor, token, password, privilege or account session is modified.
-app.post("/owner/mfa-recovery/requests/:caseUserId/reject",limiter,guard("owner"),wrap(async(req,res)=>{
- const caseId=recoveryRejectionCaseId.safeParse(req.params.caseUserId);
+app.post("/owner/mfa-recovery/requests/:caseId/reject",limiter,guard("owner"),wrap(async(req,res)=>{
+ const caseId=recoveryRejectionCaseId.safeParse(req.params.caseId);
  const input=recoveryRejectionInput.safeParse(req.body);
  if(!caseId.success||!input.success){res.status(400).json({error:"invalid_recovery_rejection"});return;}
+ const {data:claimant,error:caseError}=await admin.from("identity_mfa_recovery_cases")
+   .select("user_id,status").eq("case_id",caseId.data).maybeSingle();
+ if(caseError){res.status(503).json({error:"recovery_case_unavailable"});return;}
+ if(!claimant||claimant.status!=="pending"){res.status(404).json({error:"recovery_case_not_pending"});return;}
  const p=principal(req);
  if(!mayRejectRecovery({
-   actorId:p.uid,caseUserId:caseId.data,sessionId:p.sessionId,
+   actorId:p.uid,caseUserId:claimant.user_id,sessionId:p.sessionId,
    role:p.role,aal:p.aal,recentMfaAt:p.recentMfaAt,
  })){res.status(403).json({error:"recovery_rejection_forbidden"});return;}
  const {data,error}=await admin.rpc("identity_reject_mfa_recovery",{

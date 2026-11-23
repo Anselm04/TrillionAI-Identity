@@ -152,3 +152,35 @@ lifetime case per account, including closed cases. Re-filing after closure
 requires a separate case-versioning migration; the application must not claim
 this is already available. This change is source-only until migrations are
 applied and database transaction/RLS behavior is independently verified.
+
+## Versioned recovery cases and independent history
+
+Migration `20261123000004_identity_mfa_recovery_case_versions.sql` creates a
+new `identity_mfa_recovery_cases` table with a random `case_id` primary key,
+a per-user increasing `case_version`, and a unique pending-case constraint.
+It retains the original one-case-per-user tables as historical evidence and
+backfills any existing requests, review attestations and rejections as version
+1. New cases have independent review and rejection tables keyed by `case_id`.
+The migration replaces the existing service-role RPCs so new intake uses
+versioned cases, and the reviewer APIs explicitly use case IDs (never account
+IDs). A pending retry is idempotent; an additional request following closure
+creates the next version rather than overwriting evidence.
+
+The owner/admin queue displays both account ID and case ID/version. All review,
+assessment and rejection actions query the *requested case* and verify its
+owner/claimant identity from server-side case state, not from the supplied
+case ID. The owner cannot reject their own account's case, and reviews from a
+closed older case cannot satisfy the new case's independent evidence threshold.
+Versioned rejection does not affect credentials, sessions, assurance or MFA.
+The original source migrations remain available as historical migration steps;
+run the four recovery migrations in ascending order, without editing previously
+applied files.
+
+A disposable local PostgreSQL service job exercises the four migration files
+with a minimal isolated Supabase-shaped schema: copies legacy cases and
+attestations, rejects an old disputed case, opens new independent versions,
+prevents reuse of old reviews/rejections, verifies denial of role-spoofed intake,
+and preserves historical records. This is a real database transaction check,
+but it is **not** a live Supabase integration or a production deployment.
+
+No migrations were applied to production or any live provider environment.
