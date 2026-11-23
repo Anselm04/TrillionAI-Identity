@@ -394,7 +394,31 @@ test("rejects whitespace-only OAuth tokens returned by issuer",async()=>{
     access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer",
     ...override
    }),{status:200})
-  }),/invalid_token_response|invalid_id_token/);
+  }),/invalid_token_response|invalid_refresh_token|invalid_id_token/);
+ }
+});
+
+test("accepts access-only OAuth responses without a refresh token",async()=>{
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const tokens=await exchangeCallback({
+  transaction,callbackUrl:redirectUri+"?code=valid&state="+transaction.state,
+  fetcher:async()=>new Response(JSON.stringify({
+   access_token:"access",expires_in:3600,token_type:"bearer"
+  }),{status:200})
+ });
+ assert.equal(tokens.access_token,"access");
+ assert.equal(Object.hasOwn(tokens,"refresh_token"),false);
+});
+
+test("rejects malformed optional refresh tokens",async()=>{
+ for(const refresh_token of [null,42,{},[],false,"","\\t"]){
+  const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+  await assert.rejects(exchangeCallback({
+   transaction,callbackUrl:redirectUri+"?code=valid&state="+transaction.state,
+   fetcher:async()=>new Response(JSON.stringify({
+    access_token:"access",expires_in:3600,token_type:"bearer",refresh_token
+   }),{status:200})
+  }),/invalid_refresh_token/);
  }
 });
 
