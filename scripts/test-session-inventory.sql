@@ -1,7 +1,5 @@
 \set ON_ERROR_STOP on
 -- The disposable recovery bootstrap creates minimal auth.sessions schema.
-alter table auth.sessions add column created_at timestamptz not null default now();
-alter table auth.sessions add column updated_at timestamptz not null default now();
 insert into auth.sessions(id,user_id,not_after) values
 ('44444444-4444-4444-8444-444444444444','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',null),
 ('55555555-5555-4555-8555-555555555555','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',now()-interval '1 hour'),
