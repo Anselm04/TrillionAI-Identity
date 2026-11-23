@@ -4,7 +4,7 @@ create role authenticated nologin;
 create role service_role nologin bypassrls;
 create schema auth;
 create table auth.users(id uuid primary key);
-create table auth.sessions(id uuid primary key,user_id uuid not null references auth.users(id),not_after timestamptz);
+create table auth.sessions(id uuid primary key,user_id uuid not null references auth.users(id),not_after timestamptz,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
 create table public.identity_global_roles(
  user_id uuid primary key references auth.users(id),role text not null
 );
