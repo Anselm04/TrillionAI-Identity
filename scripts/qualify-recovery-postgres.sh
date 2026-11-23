@@ -12,3 +12,5 @@ psql -X -v ON_ERROR_STOP=1 -f scripts/test-recovery-versioned.sql
 psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261120000002_identity_session_inventory.sql
 psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261123000005_identity_session_inventory_hardening.sql
 psql -X -v ON_ERROR_STOP=1 -f scripts/test-session-inventory.sql
+psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261123000006_identity_session_revoke_atomic_audit.sql
+psql -X -v ON_ERROR_STOP=1 -f scripts/test-session-atomic-audit.sql
