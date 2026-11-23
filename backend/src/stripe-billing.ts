@@ -56,9 +56,9 @@ export function createStripeBilling(secret: string, lookup: CustomerLookup, requ
       const rows:Subscription[]=[];
       let after:string|undefined;
       for(let page=0;page<1000;page++){
-        const query=new URLSearchParams({customer:cus,status:"all",limit:"100"});
+        const query: URLSearchParams = new URLSearchParams({customer:cus,status:"all",limit:"100"});
         if(after)query.set("starting_after",after);
-        const result=await call<{data:StripeSubscription[];has_more:boolean}>("/subscriptions?"+query);
+        const result: { data: StripeSubscription[]; has_more: boolean } = await call<{data:StripeSubscription[];has_more:boolean}>("/subscriptions?"+query);
         if(!Array.isArray(result.data))throw Error("invalid_subscription_response");
         for(const s of result.data){
           if(s.customer!==cus || !subscriptionPattern.test(s.id) || s.items.has_more)throw Error("invalid_subscription_response");
