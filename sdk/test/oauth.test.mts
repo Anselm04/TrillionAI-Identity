@@ -586,7 +586,7 @@ test("rejects whitespace and control characters inside bearer tokens",async()=>{
      access_token:"access",refresh_token:"refresh",expires_in:3600,token_type:"bearer",
      [field]:token
     }),{status:200})
-   }),/invalid_token_response/);
+   }),field==="refresh_token"?/invalid_refresh_token/:/invalid_token_response/);
   }
  }
 });
