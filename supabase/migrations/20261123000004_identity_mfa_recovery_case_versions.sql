@@ -71,14 +71,14 @@ insert into public.identity_mfa_recovery_case_rejections
 create or replace function public.identity_request_mfa_recovery(
  p_actor uuid,p_session uuid,p_role text
 ) returns boolean language plpgsql security invoker set search_path='' as $intake$
-declare current_role text;
+declare v_global_role text;
 declare next_version integer;
 begin
  if p_actor is null or p_session is null or p_role is null
     or p_role not in ('customer','admin','owner') then return false; end if;
  if public.identity_session_active(p_actor,p_session) is distinct from true then return false; end if;
- select role into current_role from public.identity_global_roles where user_id=p_actor;
- if coalesce(current_role,'customer')<>p_role then return false; end if;
+ select role into v_global_role from public.identity_global_roles where user_id=p_actor;
+ if coalesce(v_global_role,'customer')<>p_role then return false; end if;
  -- Lock per account for concurrent re-requests, without UPDATE rights on auth.users.
  perform pg_advisory_xact_lock(hashtextextended(p_actor::text, 20261123));
  if exists(select 1 from public.identity_mfa_recovery_cases
