@@ -22,7 +22,7 @@ create or replace function public.identity_request_mfa_recovery(
 ) returns boolean language plpgsql security invoker set search_path='' as $intake$
 declare inserted_count integer;
 begin
-  if p_actor is null or p_session is null or p_role not in ('customer','admin','owner') then
+  if p_actor is null or p_session is null or p_role is null or p_role not in ('customer','admin','owner') then
     return false;
   end if;
   insert into public.identity_mfa_recovery_requests(user_id,session_id,requested_role)
