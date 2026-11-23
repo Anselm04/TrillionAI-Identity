@@ -1,5 +1,8 @@
 name: Identity validation (manual — no automatic cloud spending)
 on:
+  push:
+    branches:
+      - fix/offline-qualification-coverage-20261123
   workflow_dispatch:
 permissions:
   contents: read
