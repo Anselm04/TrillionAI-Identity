@@ -1,0 +1,24 @@
+name: Identity PR15 isolated offline qualification
+on:
+  push:
+    branches:
+      - fix/oauth-callback-query-integrity-20261121
+permissions:
+  contents: read
+jobs:
+  offline-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: OAuth PKCE regression suite
+        run: node --experimental-strip-types --test sdk/test/oauth.test.mts
+      - name: Backend dependency-free regression suite
+        run: node --experimental-strip-types --test backend/test/*.test.mjs
+      - name: Web dependency-free regression suite
+        run: node --experimental-strip-types --test web/test/*.test.mjs
