@@ -1,4 +1,5 @@
 import { PasswordlessSignIn } from "./PasswordlessSignIn";
+import { RecoveryReview } from "./RecoveryReview";
 import { chooseVerifiedTotpFactor, mayEnrollBackupTotp, verifiedTotpFactorIds } from "./mfa-factor-selection";
 import { DeveloperApplications } from "./DeveloperApplications";
 import { SessionInventory } from "./SessionInventory";
@@ -232,6 +233,7 @@ export default function App(){
           {factorIds.length>1&&<p className="muted">You can choose either verified authenticator at sign-in. Keep the devices separate and secure.</p>}
         </>}
         <p className="muted">Only the server can assign owner permissions.</p></section>
+      {profile?.role==="owner"&&<RecoveryReview/>}
       {profile?.role==="owner"&&<section><h2>Private owner verification</h2>
         <p>The server requires a fresh authenticator challenge for privileged operations.</p>
         <form onSubmit={verifyOwnerStepUp}>
