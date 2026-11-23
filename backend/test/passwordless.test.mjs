@@ -18,3 +18,20 @@ test("provider throttling and infrastructure failures remain explicit", () => {
   assert.equal(passwordlessDeliveryStatus({ status: 503 }), 503);
   assert.equal(passwordlessDeliveryStatus({ status: 400, code: "invalid_request" }), 503);
 });
+
+test("passwordless callbacks reject unsafe redirects and credential-bearing URLs", () => {
+  for (const url of [
+    "http://identity.example/verified",
+    "https://user:secret@identity.example/verified",
+    "https://identity.example/verified#token",
+    "https://identity.example/verified?code=secret",
+    "javascript:alert(1)",
+    "not-a-url",
+  ]) {
+    assert.throws(() => passwordlessRequestOptions(url));
+  }
+  assert.equal(
+    passwordlessRequestOptions("http://localhost:3000/verified").emailRedirectTo,
+    "http://localhost:3000/verified"
+  );
+});
