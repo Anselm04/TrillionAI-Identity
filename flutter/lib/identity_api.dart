@@ -78,7 +78,7 @@ class IdentityApi {
     // Treat the API path as a relative route, never as a second URL or
     // a path that can be normalised outside the intended endpoint.
     if (!path.startsWith('/') || path.startsWith('//') ||
-        path.contains('?') || path.contains('#') || path.contains('\\\\') ||
+        path.contains('?') || path.contains('#') || path.contains('\\') ||
         path.runes.any((code) => code < 0x20 || code == 0x7f)) {
       throw ArgumentError('Invalid API path');
     }
@@ -90,7 +90,7 @@ class IdentityApi {
         throw ArgumentError('Invalid API path encoding');
       }
       if (decoded == '.' || decoded == '..' ||
-          decoded.contains('/') || decoded.contains('\\\\') ||
+          decoded.contains('/') || decoded.contains('\\') ||
           decoded.runes.any((code) => code < 0x20 || code == 0x7f)) {
         throw ArgumentError('Unsafe API path segment');
       }
