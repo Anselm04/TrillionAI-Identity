@@ -14,7 +14,9 @@ Identity uses Supabase Auth as the **only** authority for TOTP factors. Supabase
 
 - If another verified TOTP factor is available, choose it on the verification screen. Then use provider-authorized account management to review the remaining factors.
 - If **every** enrolled factor is lost, email/password reset, magic links, and ordinary support access **cannot** grant AAL2. Identity does **not** offer an automatic reset or an emergency owner bypass.
-- A future support-assisted lost-factor process, if authorized, must be separately designed with strong identity proof, independently approved recovery, provider-supported administrative MFA operations, auditing, abuse controls, and revocation of sessions. It is **not currently implemented**. Never instruct users to share passwords or authenticator codes with support.
+- The **lost-factor intake** is implemented as a rate-limited `POST /account/mfa/recovery-request` from a still-authenticated, email-verified account with an active Supabase session and an existing verified TOTP factor. It accepts an empty JSON object, creates an idempotent pending case in `identity_mfa_recovery_requests`, and writes `mfa_recovery_requested` to the audit log. It does **not** remove or reset a factor or restore AAL2.
+- If every factor is lost **and no authenticated session remains**, this endpoint is inaccessible. Do not present a password reset or login link as an equivalent of successful MFA.
+- A future support-assisted lost-factor **resolution**, if authorized, must be separately designed with strong independent identity proof, independently approved recovery, provider-supported administrative MFA operations, auditing, abuse controls, and session revocation. It is **not currently implemented**. Never instruct users to share passwords or authenticator codes with support.
 
 ## Security boundaries
 
@@ -24,3 +26,12 @@ Identity uses Supabase Auth as the **only** authority for TOTP factors. Supabase
 - These tests are offline and do not certify a live provider migration or authenticator recovery procedure.
 
 Reference bases: the repository's Supabase and Appwrite read-only reference libraries, Supabase Auth MFA enrollment/challenge API, and Identity's own role/assurance guards.
+
+## Engineering / deployment qualification
+
+- Migration `20261123000001_identity_mfa_recovery_intake.sql` is source only until applied to an Identity-owned database in a separately authorized deployment.
+- The intake function is restricted to `service_role`; the browser/mobile SDKs never call the RPC directly and must not receive service credentials.
+- The authenticated API never accepts a user ID, role, factor ID, approval decision, unlock token, or arbitrary recovery action in the request body.
+- The primary key on `user_id` prevents repeat requests from generating new cases; the application limiter bounds repeated endpoint calls.
+- Pending cases remain pending; there is intentionally **no** public review, approval, token generation, account reset, direct factor-management, or special owner bypass.
+- Approval, if engineered separately, must implement explicit reviewer separation, tamper-resistant review evidence, fail-closed state transitions, and independently enforceable provider-side MFA changes. Offline CI does not certify production migration behavior.
