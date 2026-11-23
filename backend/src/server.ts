@@ -1,5 +1,6 @@
 import { credentialIssueInput, issueServiceKey, digestServiceKey } from "./service-credentials.js";
 import { developerClientInput } from "./developer-client.js";
+import { passwordlessRequestOptions, passwordlessDeliveryStatus } from "./passwordless.js";
 import { createCheckoutProvider, parseCheckoutPlans } from "./stripe-checkout.js";
 import { initializeAccountLifecycle } from "./account-lifecycle.js";
 import { verifyStripeEvent, subscriptionEvent } from "./stripe-webhook.js";
@@ -91,6 +92,20 @@ app.post("/auth/resend", limiter, wrap(async (req, res) => {
     }
     res.status(error.status === 429 ? 429 : 503).json({ error: "verification_delivery_unavailable" }); return;
   }
+  res.status(202).json(neutral);
+}));
+// Existing verified accounts only. Supabase Auth owns link issuance, expiry and redemption.
+// The endpoint does not issue credentials or create users; callback handling remains provider-managed.
+app.post("/auth/passwordless/email", limiter, wrap(async (req, res) => {
+  const parsed = z.object({ email }).strict().safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Valid email required" }); return; }
+  const { error } = await publicAuthClient().auth.signInWithOtp({
+    email: parsed.data.email,
+    options: passwordlessRequestOptions(new URL("/verified", config.APP_URL).href),
+  });
+  const status = passwordlessDeliveryStatus(error);
+  if (status === 429) { res.status(429).json({ error: "too_many_requests" }); return; }
+  if (status === 503) { res.status(503).json({ error: "passwordless_delivery_unavailable" }); return; }
   res.status(202).json(neutral);
 }));
 app.post("/auth/forgot", limiter, wrap(async (req, res) => {
