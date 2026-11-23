@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'session_continuity.dart';
 
 const apiUrl = String.fromEnvironment('IDENTITY_API_URL',
     defaultValue: 'http://10.0.2.2:3000');
@@ -19,7 +20,8 @@ class IdentityApi {
 
   Future<Map<String, dynamic>> request(String method, String path,
       [Object? body]) async {
-    final token = client.auth.currentSession?.accessToken;
+    final started = client.auth.currentSession;
+    final token = started?.accessToken;
     if (token == null) throw StateError('Please sign in.');
     final base = Uri.parse(apiUrl);
     if (base.scheme != 'https' && !(base.scheme == 'http' && const ['localhost','127.0.0.1','10.0.2.2'].contains(base.host))) {
@@ -38,6 +40,13 @@ class IdentityApi {
     final decoded = response.statusCode == 204 && response.body.trim().isEmpty ? <String,dynamic>{} : jsonDecode(response.body);
     final data = decoded is Map<String, dynamic>
         ? decoded : <String, dynamic>{};
+    // Discard late response data after sign-out or a different login session.
+    // Supabase Auth remains solely responsible for refreshing credentials.
+    final latest = client.auth.currentSession;
+    if (!sameIdentitySession(token, started?.user.id,
+        latest?.accessToken, latest?.user.id)) {
+      throw StateError('Session changed. Please retry.');
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw IdentityRequestException(response.statusCode,
         data['error']?.toString() ?? 'Request failed', data);
