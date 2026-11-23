@@ -194,6 +194,12 @@ export async function exchangeCallback(input: {
     body:new URLSearchParams({grant_type:"authorization_code",code:codes[0],
       client_id:t.clientId,redirect_uri:t.redirectUri,code_verifier:t.verifier}),
   });
+  // A custom fetch adapter may resolve after cancellation without rejecting.
+  // Never inspect or consume credentials from a response delivered after abort.
+  if (input.signal?.aborted) {
+    try { await response.body?.cancel(); } catch { /* Preserve cancellation reason. */ }
+    throw Error("oauth_exchange_aborted");
+  }
   if (!response.ok) {
     // Discard an unsuccessful issuer response without buffering untrusted error data.
     // Cancellation is best-effort: preserve the stable exchange failure reason.
