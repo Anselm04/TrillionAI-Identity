@@ -35,6 +35,10 @@ export async function api<T=unknown>(path: string, method="GET", body?: unknown)
   } catch { return { ok: false, status: 0, error: "Cannot reach the Identity server" }; }
 }
 export async function publicPost(path:string, body:unknown):Promise<ApiResult> {
+  // Public calls must never become a generic unauthenticated API transport.
+  if (path !== "/auth/passwordless/email") {
+    return {ok:false,status:400,error:"Unsupported public API path"};
+  }
   try {
     const res=await fetch(endpoint(path),{redirect:"error",cache:"no-store",method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const data=await res.json().catch(()=>({}));
