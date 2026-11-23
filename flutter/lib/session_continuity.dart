@@ -21,7 +21,12 @@ bool sameIdentitySession(String? oldToken, String? oldUser,
     String? newToken, String? newUser) {
   if (oldToken == null || newToken == null || oldUser == null ||
       newUser == null || oldUser != newUser || !RegExp(
-      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12},
+      caseSensitive: false).hasMatch(oldUser)) return false;
+  final oldId = clientSessionId(oldToken);
+  return oldId != null && oldId == clientSessionId(newToken);
+}
+,
       caseSensitive: false).hasMatch(oldUser)) return false;
   final oldId = clientSessionId(oldToken);
   return oldId != null && oldId == clientSessionId(newToken);
