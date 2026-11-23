@@ -1,4 +1,5 @@
 import { PasswordlessSignIn } from "./PasswordlessSignIn";
+import { chooseVerifiedTotpFactor, mayEnrollBackupTotp, verifiedTotpFactorIds } from "./mfa-factor-selection";
 import { DeveloperApplications } from "./DeveloperApplications";
 import { SessionInventory } from "./SessionInventory";
 import { DeletionReadiness } from "./DeletionReadiness";
@@ -32,6 +33,8 @@ export default function App(){
   const [mode,setMode]=useState<"normal"|"recover">("normal");
   const [profile,setProfile]=useState<Profile|null>(null);
   const [factor,setFactor]=useState<string|null>(null);
+  const [factorIds,setFactorIds]=useState<string[]>([]);
+  const [assurance,setAssurance]=useState<"aal1"|"aal2"|null>(null);
   const [mfaPending,setMfaPending]=useState(false);
   const [enrolling,setEnrolling]=useState<{id:string;qr:string;secret:string}|null>(null);
   const [subscriptions,setSubscriptions]=useState<Subscription[]|null>(null);
@@ -43,7 +46,7 @@ export default function App(){
       if(!active)return;
       setSession(current);
       if(event==="PASSWORD_RECOVERY")setMode("recover");
-      if(event==="SIGNED_OUT"){setProfile(null);setFactor(null);setMfaPending(false);setSubscriptions(null);setEnrolling(null);setName("");setCode("");setPassword("");setCurrentPassword("");setConfirm("");setMode("normal");}
+      if(event==="SIGNED_OUT"){setProfile(null);setFactor(null);setFactorIds([]);setAssurance(null);setMfaPending(false);setSubscriptions(null);setEnrolling(null);setName("");setCode("");setPassword("");setCurrentPassword("");setConfirm("");setMode("normal");}
     });
     void supabase.auth.getSession().then(({data})=>{if(active){setSession(data.session);setReady(true);}});
     return ()=>{active=false;subscription.unsubscribe();};
@@ -57,9 +60,13 @@ export default function App(){
     ]);
     if(!me.ok){setProfile(null);setMessage(me.error);return;}
     if(aal.error || factors.error){setProfile(null);setMessage("Account security check unavailable. Please retry.");return;}
-    const factorId = factors.data?.totp.find(f=>f.status==="verified")?.id ?? null;
+    const ids = verifiedTotpFactorIds(factors.data?.totp ?? []);
+    const factorId = chooseVerifiedTotpFactor(ids, factor);
+    const currentLevel = aal.data?.currentLevel === "aal2" ? "aal2" : "aal1";
+    setFactorIds(ids);
     setFactor(factorId);
-    const pending=Boolean(factorId && aal.data?.currentLevel!=="aal2");
+    setAssurance(currentLevel);
+    const pending = Boolean(factorId && currentLevel !== "aal2");
     setMfaPending(pending);
     if(pending){setProfile(null);return;}
     if("mfa_required" in me.data){setMfaPending(true);return;}
@@ -108,7 +115,10 @@ export default function App(){
     setMessage("Owner MFA verified. Server-side privileged access is active for this session.");
   });}
   async function setupMfa(){await submit(async()=>{
-    const {data,error}=await supabase.auth.mfa.enroll({factorType:"totp",friendlyName:"TrillionAI authenticator"});
+    if(!mayEnrollBackupTotp(factorIds.length > 0, assurance)){
+      throw Error("Verify an existing authenticator before enrolling a backup.");
+    }
+    const {data,error}=await supabase.auth.mfa.enroll({factorType:"totp",friendlyName:factorIds.length > 0 ? "TrillionAI backup authenticator" : "TrillionAI authenticator"});
     if(error)throw Error(error.message);
     if(!data.totp?.qr_code || !data.totp.secret)throw Error("Authenticator setup did not return enrollment details");
     setEnrolling({id:data.id,qr:data.totp.qr_code,secret:data.totp.secret});
@@ -183,9 +193,17 @@ export default function App(){
       <button disabled={busy}>{ {login:"Sign in",signup:"Create account",forgot:"Send recovery link",resend:"Resend email"}[page]}</button></form>}
       {page==="login"&&<PasswordlessSignIn/>}
     </>:
-    mfaPending?<section><h2>Two-step verification required</h2><form onSubmit={verifyMfa}>
+    mfaPending?<section><h2>Two-step verification required</h2>
+      {factorIds.length>1&&<label>Choose authenticator
+        <select value={factor ?? ""} onChange={e=>{setFactor(e.target.value);setCode("");}}>
+          {factorIds.map((id,index)=><option key={id} value={id}>Authenticator {index+1}</option>)}
+        </select>
+      </label>}
+      <form onSubmit={verifyMfa}>
       <Field label="Six-digit authenticator code" value={code} onChange={setCode}/>
-      <button disabled={busy}>Verify</button></form><button className="secondary" onClick={()=>void signOut()}>Sign out</button></section>:
+      <button disabled={busy}>Verify</button></form>
+      <p className="muted">Use a backup authenticator if your primary device is unavailable. Password recovery does not disable MFA.</p>
+      <button className="secondary" onClick={()=>void signOut()}>Sign out</button></section>:
     !profile?<section><p role="status">Checking verified account access.</p><button onClick={()=>void reload()}>Retry</button><button className="secondary" onClick={()=>void signOut()}>Sign out</button></section>:
     <><p>Signed in as {session.user.email}</p><button className="secondary" onClick={()=>void signOut()}>Sign out</button>
       <section><h2>Session management</h2>
@@ -198,11 +216,15 @@ export default function App(){
       <DeveloperApplications key={"clients:"+session.user.id}/>
       <OrganisationInvitations key={session.user.id}/>
       <section><h2>Account security</h2><p>Role: {profile?.role ?? "customer"}</p>
-        {!factor && !enrolling && <button onClick={setupMfa}>Enable authenticator MFA</button>}
+        {!enrolling && mayEnrollBackupTotp(factorIds.length>0,assurance) &&
+          <button disabled={busy} onClick={setupMfa}>{factorIds.length>0?"Enroll backup authenticator":"Enable authenticator MFA"}</button>}
         {enrolling && <form onSubmit={confirmMfa}><p>Scan this QR code in your authenticator app or enter the key:</p>
           <img className="qr" src={enrolling.qr} alt="MFA enrollment QR"/><p><code>{enrolling.secret}</code></p>
           <Field label="Six-digit code" value={code} onChange={setCode}/><button disabled={busy}>Confirm MFA</button></form>}
-        {factor&&<p className="good">Authenticator MFA enrolled</p>}
+        {factor&&<><p className="good">{factorIds.length} verified authenticator{factorIds.length===1?"":"s"} enrolled</p>
+          {factorIds.length===1&&<p className="muted">Enroll a backup authenticator on a separate device before losing access to this one. Recovery codes are not supported by the configured provider.</p>}
+          {factorIds.length>1&&<p className="muted">You can choose either verified authenticator at sign-in. Keep the devices separate and secure.</p>}
+        </>}
         <p className="muted">Only the server can assign owner permissions.</p></section>
       {profile?.role==="owner"&&<section><h2>Private owner verification</h2>
         <p>The server requires a fresh authenticator challenge for privileged operations.</p>

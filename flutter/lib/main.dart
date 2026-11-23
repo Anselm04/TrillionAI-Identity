@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'identity_api.dart';
 import 'organisation_invitations.dart';
 import 'validation.dart';
+import 'mfa_factor_selection.dart';
 
 const redirectUrl = String.fromEnvironment('AUTH_REDIRECT_URL');
 
@@ -47,6 +48,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   String page = 'signin';
   String message = '';
   String? factorId;
+  List<String> verifiedFactorIds = [];
   String? accountRole;
   String? enrollId;
   String? qr;
@@ -62,7 +64,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
     changes = supabase.auth.onAuthStateChange.listen((state) {
       if (state.event == AuthChangeEvent.passwordRecovery) page = 'reset';
       if (state.event == AuthChangeEvent.signedOut) {
-        page = 'signin'; needsMfa = false; factorId = null; accountRole = null;
+        page = 'signin'; needsMfa = false; factorId = null; verifiedFactorIds = []; accountRole = null;
         enrollId = null; qr = null; secret = null; subscriptions = null; accountSessions = null; passwordlessEmail=null; passwordlessCode.clear();
         for (final controller in [password,currentPassword,confirm,code,displayName,newEmail,deletePassword,deleteConfirmation]) { controller.clear(); }
       }
@@ -77,17 +79,19 @@ class _IdentityScreenState extends State<IdentityScreen> {
 
   Future<void> checkMfa() async {
     if (supabase.auth.currentSession == null) {
-      if (mounted) setState(() { needsMfa = false; factorId = null; accountRole = null; });
+      if (mounted) setState(() { needsMfa = false; factorId = null; verifiedFactorIds = []; accountRole = null; });
       return;
     }
     try {
       final level = supabase.auth.mfa.getAuthenticatorAssuranceLevel();
       final factors = await supabase.auth.mfa.listFactors();
       final totp = factors.totp.where((f) => f.status == FactorStatus.verified).toList();
-      final pending = totp.isNotEmpty &&
+      final ids = totp.map((factor) => factor.id).toSet().toList();
+      final pending = ids.isNotEmpty &&
         level.currentLevel != AuthenticatorAssuranceLevels.aal2;
       if (mounted) setState(() {
-        factorId = totp.isEmpty ? null : totp.first.id;
+        factorId = chooseVerifiedFactor(ids, factorId);
+        verifiedFactorIds = ids;
         needsMfa = pending;
       });
       if (!pending) {
@@ -172,8 +176,14 @@ class _IdentityScreenState extends State<IdentityScreen> {
   });
 
   Future<void> startMfa() => perform(() async {
+    final level = supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (!canEnrollBackupFactor(verifiedFactorIds.isNotEmpty,
+        level.currentLevel == AuthenticatorAssuranceLevels.aal2)) {
+      throw StateError('Verify an existing authenticator before adding a backup.');
+    }
     final r = await supabase.auth.mfa.enroll(
-      factorType: FactorType.totp, friendlyName: 'TrillionAI Identity');
+      factorType: FactorType.totp,
+      friendlyName: verifiedFactorIds.isEmpty ? 'TrillionAI Identity' : 'TrillionAI backup authenticator');
     setState(() {
       enrollId = r.id;
       qr = r.totp?.uri;
@@ -197,6 +207,9 @@ class _IdentityScreenState extends State<IdentityScreen> {
   });
 
   Future<void> disableMfa() => perform(() async {
+    if (accountRole == 'owner' || accountRole == 'admin') {
+      throw StateError('Privileged authenticator removal requires a separate security-reviewed process.');
+    }
     final id = factorId;
     if (id == null) return;
     final approved = await showDialog<bool>(context: context, builder: (ctx) =>
@@ -330,9 +343,22 @@ class _IdentityScreenState extends State<IdentityScreen> {
 
   Widget mfaForm() => Column(children: [
     const Text('Enter the six-digit code from your authenticator app.'),
+    if (verifiedFactorIds.length > 1)
+      DropdownButton<String>(
+        value: factorId,
+        isExpanded: true,
+        items: [
+          for (var index = 0; index < verifiedFactorIds.length; index++)
+            DropdownMenuItem<String>(
+              value: verifiedFactorIds[index],
+              child: Text('Authenticator ${index + 1}')),
+        ],
+        onChanged: busy ? null : (id) => setState(() { factorId = id; code.clear(); }),
+      ),
     field('Code', code),
     FilledButton(onPressed: busy || factorId == null ? null : () => verifyMfa(factorId!),
       child: const Text('Verify authenticator')),
+    const Text('Use your backup authenticator if the primary device is lost. Password recovery does not disable MFA.'),
     TextButton(onPressed: () => perform(() async {
       await supabase.auth.signOut(); await checkMfa();
     }), child: const Text('Sign out')),
@@ -405,9 +431,10 @@ class _IdentityScreenState extends State<IdentityScreen> {
       child: const Text('Sign out all devices')),
     const Text('Revoked sessions cannot refresh. Existing access tokens may remain valid until expiry.'),
     const Divider(),
-    if (factorId == null && enrollId == null)
+    if (enrollId == null)
       FilledButton(onPressed: busy ? null : startMfa,
-        child: const Text('Enable authenticator MFA')),
+        child: Text(verifiedFactorIds.isEmpty
+            ? 'Enable authenticator MFA' : 'Enroll backup authenticator')),
     if (enrollId != null) ...[
       const Text('Scan with an authenticator app, or enter the secret:'),
       if (qr != null) SizedBox(height: 190, child: QrImageView(data: qr!)),
@@ -417,9 +444,14 @@ class _IdentityScreenState extends State<IdentityScreen> {
         child: const Text('Confirm authenticator')),
     ],
     if (factorId != null) ...[
-      const Text('Authenticator MFA enabled.'),
-      TextButton(onPressed: busy ? null : disableMfa,
-        child: const Text('Remove authenticator')),
+      Text('${verifiedFactorIds.length} verified authenticator(s) enrolled.'),
+      if (verifiedFactorIds.length == 1)
+        const Text('Enroll a backup authenticator on a separate device. The provider does not issue recovery codes.'),
+      if (verifiedFactorIds.length > 1)
+        const Text('Either verified authenticator can complete MFA. Keep both devices secure.'),
+      if (accountRole == 'customer')
+        TextButton(onPressed: busy ? null : disableMfa,
+          child: const Text('Remove selected authenticator')),
     ],
     if (accountRole == 'owner' && factorId != null) ...[
       const Divider(),
