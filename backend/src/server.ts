@@ -18,6 +18,7 @@ import { initializeStripeBilling } from "./stripe-bootstrap.js";
 import { cancelDirectSubscriptionVerified, BillingVerificationError } from "./billing.js";
 import { directBillingIsCancelled, storeSubscriptionsRequireAcknowledgement } from "./deletion.js";
 import { canRequestLostMfaRecovery } from "./mfa-recovery.js";
+import { recoveryQueueQuery, recoveryQueuePage, type RecoveryQueueCase } from "./mfa-recovery-queue.js";
 
 export const app = express();
 app.disable("x-powered-by");
@@ -563,6 +564,29 @@ app.post("/v1/service-credentials/introspect",limiter,wrap(async(req,res)=>{
  if(error){res.status(503).json({error:"credential_validation_unavailable"});return;}
  if(!data){res.status(401).json({error:"invalid_service_credential"});return;}
  res.json({active:true,...data});
+}));
+// Owner-only case inventory. The existing owner guard enforces verified email,
+// an active session, AAL2 and a recent TOTP challenge. No recovery capabilities
+// are issued; the output deliberately omits provider factor and session tokens.
+app.get("/owner/mfa-recovery/requests",guard("owner"),wrap(async(req,res)=>{
+ const parsed=recoveryQueueQuery.safeParse(req.query);
+ if(!parsed.success){res.status(400).json({error:"invalid_recovery_queue_query"});return;}
+ const {after,limit}=parsed.data;
+ let query=admin.from("identity_mfa_recovery_requests")
+   .select("user_id,requested_role,created_at")
+   .eq("status","pending")
+   .order("user_id",{ascending:true})
+   .limit(limit+1);
+ if(after)query=query.gt("user_id",after);
+ const {data,error}=await query;
+ if(error||!Array.isArray(data)){
+   res.status(503).json({error:"recovery_queue_unavailable"});return;
+ }
+ const valid=data.every(row=>typeof row.user_id==="string"
+   && ["customer","admin","owner"].includes(row.requested_role)
+   && typeof row.created_at==="string");
+ if(!valid){res.status(503).json({error:"recovery_queue_invalid"});return;}
+ res.json(recoveryQueuePage(data as RecoveryQueueCase[],limit));
 }));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
