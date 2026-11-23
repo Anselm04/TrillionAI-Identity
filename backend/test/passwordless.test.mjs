@@ -35,3 +35,26 @@ test("passwordless callbacks reject unsafe redirects and credential-bearing URLs
     "http://localhost:3000/verified"
   );
 });
+
+test("passwordless callback policy rejects alternate schemes and ambiguous URLs", () => {
+  for (const url of [
+    "ftp://identity.example/verified",
+    "data:text/html,hello",
+    "file:///verified",
+    "http://localhost.evil.example/verified",
+    "http://127.0.0.2:3000/verified",
+    "https://identity.example/verified?next=https://evil.example",
+    "https://identity.example/verified#access_token=secret",
+    "https://user@identity.example/verified",
+  ]) {
+    assert.throws(() => passwordlessRequestOptions(url), { message: "Invalid passwordless callback URL" });
+  }
+  assert.equal(
+    passwordlessRequestOptions("https://identity.example/verified").emailRedirectTo,
+    "https://identity.example/verified"
+  );
+  assert.equal(
+    passwordlessRequestOptions("http://127.0.0.1:3000/verified").emailRedirectTo,
+    "http://127.0.0.1:3000/verified"
+  );
+});
