@@ -21,6 +21,7 @@ import { canRequestLostMfaRecovery } from "./mfa-recovery.js";
 import { recoveryQueueQuery, recoveryQueuePage, type RecoveryQueueCase } from "./mfa-recovery-queue.js";
 import { recoveryReviewInput, mayAttestRecoveryReview } from "./mfa-recovery-review.js";
 import { assessmentCaseId, assessRecoveryEvidence } from "./mfa-recovery-assessment.js";
+import { mayRejectRecovery, recoveryRejectionInput, recoveryRejectionCaseId } from "./mfa-recovery-rejection.js";
 
 export const app = express();
 app.disable("x-powered-by");
@@ -668,6 +669,25 @@ app.get("/admin/mfa-recovery/requests/:caseUserId/assessment",guard("admin"),wra
  } catch {
    res.status(503).json({error:"recovery_assessment_unavailable"});
  }
+}));
+// Reject-and-close only. The database independently verifies that another
+// currently privileged reviewer previously recorded insufficient evidence.
+// No factor, token, password, privilege or account session is modified.
+app.post("/owner/mfa-recovery/requests/:caseUserId/reject",limiter,guard("owner"),wrap(async(req,res)=>{
+ const caseId=recoveryRejectionCaseId.safeParse(req.params.caseUserId);
+ const input=recoveryRejectionInput.safeParse(req.body);
+ if(!caseId.success||!input.success){res.status(400).json({error:"invalid_recovery_rejection"});return;}
+ const p=principal(req);
+ if(!mayRejectRecovery({
+   actorId:p.uid,caseUserId:caseId.data,sessionId:p.sessionId,
+   role:p.role,aal:p.aal,recentMfaAt:p.recentMfaAt,
+ })){res.status(403).json({error:"recovery_rejection_forbidden"});return;}
+ const {data,error}=await admin.rpc("identity_reject_mfa_recovery",{
+   p_actor:p.uid,p_session:p.sessionId,p_case:caseId.data
+ });
+ if(error){res.status(503).json({error:"recovery_rejection_unavailable"});return;}
+ if(data!==true){res.status(409).json({error:"recovery_rejection_ineligible"});return;}
+ res.json({closed:true,decision:"rejected",authorizationGranted:false,mfaChanged:false});
 }));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
