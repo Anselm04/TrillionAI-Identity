@@ -1,11 +1,17 @@
-name: Identity validation (manual — no automatic cloud spending)
+name: Identity offline validation
+# Public repository GitHub-hosted checks only: no deployment jobs, secrets,
+# production services or external billing credentials.
 on:
+  pull_request:
   push:
     branches:
-      - fix/offline-qualification-coverage-20261123
+      - main
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: identity-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -15,6 +21,8 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -31,6 +39,8 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -43,6 +53,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -56,6 +68,8 @@ jobs:
         working-directory: flutter
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
