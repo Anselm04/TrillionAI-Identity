@@ -35,6 +35,16 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run build
+  oauth-sdk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify OAuth PKCE SDK offline regression suite
+        run: node --experimental-strip-types --test sdk/test/oauth.test.mts
   flutter:
     runs-on: ubuntu-latest
     timeout-minutes: 15
