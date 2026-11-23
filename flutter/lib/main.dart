@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'identity_api.dart';
+import 'account_operation_generation.dart';
 import 'organisation_invitations.dart';
 import 'validation.dart';
 import 'mfa_factor_selection.dart';
@@ -44,6 +45,8 @@ class _IdentityScreenState extends State<IdentityScreen> {
   SupabaseClient get supabase => Supabase.instance.client;
   IdentityApi get api => IdentityApi(supabase);
   bool busy = false;
+  final accountOperations = AccountOperationGeneration();
+  int? operationTicket;
   bool needsMfa = false;
   String page = 'signin';
   String message = '';
@@ -62,6 +65,14 @@ class _IdentityScreenState extends State<IdentityScreen> {
   void initState() {
     super.initState();
     changes = supabase.auth.onAuthStateChange.listen((state) {
+      if (state.event == AuthChangeEvent.signedIn ||
+          state.event == AuthChangeEvent.signedOut) {
+        accountOperations.invalidate();
+        operationTicket = null;
+        busy = false;
+        subscriptions = null;
+        accountSessions = null;
+      }
       if (state.event == AuthChangeEvent.passwordRecovery) page = 'reset';
       if (state.event == AuthChangeEvent.signedOut) {
         page = 'signin'; needsMfa = false; factorId = null; verifiedFactorIds = []; accountRole = null;
@@ -108,16 +119,25 @@ class _IdentityScreenState extends State<IdentityScreen> {
   }
 
   Future<void> perform(Future<void> Function() operation) async {
-    if (busy) return;
+    final ticket = accountOperations.begin();
+    if (ticket == null || !mounted) return;
+    operationTicket = ticket;
     setState(() { busy = true; message = ''; });
     try {
       await operation();
     } on AuthException catch (e) {
-      if (mounted) setState(() => message = e.message);
+      if (mounted && accountOperations.isCurrent(ticket)) {
+        setState(() => message = e.message);
+      }
     } catch (e) {
-      if (mounted) setState(() => message = e.toString());
+      if (mounted && accountOperations.isCurrent(ticket)) {
+        setState(() => message = e.toString());
+      }
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (accountOperations.finish(ticket)) {
+        operationTicket = null;
+        if (mounted) setState(() => busy = false);
+      }
     }
   }
 
@@ -226,20 +246,30 @@ class _IdentityScreenState extends State<IdentityScreen> {
   });
 
   Future<void> saveProfile() => perform(() async {
-    await api.request('PATCH', '/account/profile', {'display_name': displayName.text.trim()});
-    setState(() => message = 'Profile saved.');
+    final ticket = operationTicket!;
+    final name = displayName.text.trim();
+    await api.request('PATCH', '/account/profile', {'display_name': name});
+    if (mounted && accountOperations.isCurrent(ticket)) {
+      setState(() => message = 'Profile saved.');
+    }
   });
 
   Future<void> listSubscriptions() => perform(() async {
+    final ticket = operationTicket!;
     final result = await api.request('GET', '/account/subscriptions');
-    setState(() => subscriptions = result['subscriptions'] as List<dynamic>);
+    if (!mounted || !accountOperations.isCurrent(ticket)) return;
+    final rows = result['subscriptions'];
+    if (rows is! List<dynamic>) throw StateError('Invalid subscriptions response.');
+    setState(() => subscriptions = rows);
   });
 
   Future<void> cancelSubscription(String id) => perform(() async {
+    final ticket = operationTicket!;
     final result = await api.request('POST',
       '/account/subscriptions/' + Uri.encodeComponent(id) + '/cancel');
+    if (!mounted || !accountOperations.isCurrent(ticket)) return;
     if (result['cancelled'] != true) throw StateError('Cancellation not confirmed.');
-    setState(() => message = 'Cancellation confirmed.');
+    setState(() { subscriptions = null; message = 'Cancellation confirmed. Refresh subscriptions to verify status.'; });
   });
 
   Future<void> exportData() => perform(() async {
@@ -250,6 +280,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   });
 
   Future<void> deleteAccount() => perform(() async {
+    final ticket = operationTicket!;
     if (deletePassword.text.isEmpty || deleteConfirmation.text != 'DELETE') {
       throw StateError('Enter current password and type DELETE to confirm.');
     }
@@ -260,7 +291,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
     } on IdentityRequestException catch (error) {
       if (error.status != 409 ||
           error.error != 'store_subscription_needs_cancellation') rethrow;
-      if (!mounted) return;
+      if (!mounted || !accountOperations.isCurrent(ticket)) return;
       final urls = (error.data['manageUrls'] as List<dynamic>? ?? [])
           .whereType<String>().where((url) => url.isNotEmpty).join('\\n');
       final confirmed = await showDialog<bool>(context: context, builder: (ctx) =>
@@ -273,15 +304,18 @@ class _IdentityScreenState extends State<IdentityScreen> {
             TextButton(onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Delete anyway')),
           ]));
-      if (confirmed != true) return;
+      if (confirmed != true || !mounted || !accountOperations.isCurrent(ticket)) return;
       result = await api.request('DELETE', '/account', {
         'password': deletePassword.text, 'confirm': 'DELETE',
         'acknowledge_store_subscriptions': true,
       });
     }
+    if (!mounted || !accountOperations.isCurrent(ticket)) return;
     if (result['deleted'] != true) throw StateError('Deletion not confirmed.');
     await supabase.auth.signOut(scope: SignOutScope.local);
-    setState(() => message = 'Account deletion confirmed.');
+    if (mounted && accountOperations.isCurrent(ticket)) {
+      setState(() => message = 'Account deletion confirmed.');
+    }
   });
 
   Widget field(String label, TextEditingController controller,
@@ -549,6 +583,8 @@ class _IdentityScreenState extends State<IdentityScreen> {
 
   @override
   void dispose() {
+    accountOperations.invalidate();
+    operationTicket = null;
     changes.cancel();
     passwordlessCode.dispose();
     for (final c in [email, password, currentPassword, confirm, code, displayName, newEmail, deletePassword, deleteConfirmation]) {
