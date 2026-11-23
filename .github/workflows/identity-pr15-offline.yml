@@ -18,6 +18,9 @@ jobs:
           node-version: '22.16.0'
       - name: OAuth PKCE regression suite
         run: node --experimental-strip-types --test sdk/test/oauth.test.mts
+      - name: Install backend test dependencies (no scripts or audit)
+        working-directory: backend
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Backend dependency-free regression suite
         run: node --experimental-strip-types --test backend/test/*.test.mjs
       - name: Web dependency-free regression suite
