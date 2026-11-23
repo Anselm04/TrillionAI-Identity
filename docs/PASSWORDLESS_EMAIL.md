@@ -6,4 +6,4 @@ The redirect is configured as `APP_URL/verified`. Before enabling the feature fo
 
 Offline unit tests: `cd backend && npm run test:offline` (not executed in this source-only run). No provider credentials, live email, production configuration or deployment are required for these tests.
 
-Reference/provenance: Supabase Auth via the already-pinned `@supabase/supabase-js` dependency in `backend/package.json`. No upstream source was copied or vendored. This change does not implement enterprise SSO, passkeys or email OTP verification UX.
+Reference/provenance: Supabase Auth via the already-pinned `@supabase/supabase-js` dependency in `backend/package.json`. No upstream source was copied or vendored. The React and Flutter sign-in screens now initiate email through the Node endpoint, while Supabase Auth retains ownership of OTP verification and session redemption. The Flutter unauthenticated API method is restricted to this one route and enforces HTTPS outside local development. This change does not implement enterprise SSO or passkeys.
