@@ -1,6 +1,9 @@
 -- A rejection is NOT an MFA recovery approval. It only closes a disputed case.
 -- This migration depends on the intake and independent review migrations.
 begin;
+-- Earlier intake migration grants SELECT/INSERT only; allow service-role
+-- status closure without granting arbitrary case modifications.
+grant update (status,closed_at) on public.identity_mfa_recovery_requests to service_role;
 create table if not exists public.identity_mfa_recovery_rejections (
   case_user_id uuid primary key references public.identity_mfa_recovery_requests(user_id) on delete cascade,
   rejected_by uuid not null references auth.users(id),
