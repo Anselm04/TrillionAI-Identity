@@ -740,3 +740,25 @@ test("rejects token stream when custom fetch ignores cancellation", async () => 
  }),/oauth_exchange_aborted/);
  assert.equal(cancelled,true);
 });
+
+
+test("late custom fetch resolution after abort rejects before reading token response", async () => {
+ const {transaction}=await beginAuthorization({issuer,clientId:"public-app",redirectUri});
+ const controller=new AbortController();
+ let cancelled=false;
+ let read=false;
+ const body=new ReadableStream<Uint8Array>({
+  pull(){read=true;},
+  cancel(){cancelled=true;}
+ },{highWaterMark:0});
+ await assert.rejects(exchangeCallback({
+  transaction,callbackUrl:redirectUri+"?code=valid&state="+transaction.state,
+  signal:controller.signal,
+  fetcher:async()=>{
+   controller.abort();
+   return new Response(body,{status:200});
+  }
+ }),/oauth_exchange_aborted/);
+ assert.equal(cancelled,true);
+ assert.equal(read,false);
+});
