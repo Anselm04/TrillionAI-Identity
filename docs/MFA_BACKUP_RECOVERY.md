@@ -95,3 +95,34 @@ Both are unapplied until a separately authorized deployment. PostgreSQL
 transactions and Supabase provider operations require their own integration
 qualification: successful Node, web and Flutter CI is not proof of running
 database state.
+
+## Evidence assessment, never authorization
+
+The owner/admin review interface offers a **read-only independent review status**
+from `GET /admin/mfa-recovery/requests/:caseUserId/assessment`. The endpoint
+uses the existing provider-backed `guard("admin")` and checks that the case is
+pending. It fetches a bounded set of review attestations and resolves each
+reviewer's **current** global role. Invalid or truncated data fails closed.
+
+The evidence assessment applies these rules:
+
+- At least **two different**, currently privileged reviewers must attest that
+  independent evidence was sighted, and one must currently be the owner.
+- A self-review is ineligible. A reviewer who lost admin/owner privileges no
+  longer contributes to the assessment.
+- Any current privileged review saying `insufficient_evidence` results in
+  `evidence_disputed`, even if multiple other reviewers sighted evidence.
+- **Owner recovery** always reports
+  `owner_recovery_requires_external_governance`: with a single global owner,
+  ordinary owner quorum cannot work without allowing self-review.
+- Every response sets `unlockAuthorized:false` and
+  `mfaResetAuthorized:false`, regardless of the recorded evidence.
+
+The status `independent_review_recorded` indicates *only* that review
+attestations meet an evidence-accounting threshold; it **never** means
+identity verification is confirmed, recovery approved, or MFA reset authorized.
+Source review attestations are human declarations and the database migrations
+remain unapplied. A separate, externally verified provider recovery procedure
+and database integration qualification are necessary before recovery execution
+could be considered. This release deliberately contains **no** MFA reset
+endpoint, factor removal, privileged override or access token issuance.
