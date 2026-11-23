@@ -13,6 +13,21 @@ describe("developer OAuth redirect URI registration", () => {
     },
   );
 
+  it("rejects percent-encoded reserved names after URL decoding", () => {
+    for (const uri of [
+      "https://example.com/callback?%73tate=preexisting",
+      "https://example.com/callback?co%64e=preexisting",
+      "https://example.com/callback?error%5Fdescription=bad",
+    ]) expect(redirectUri.safeParse(uri).success).toBe(false);
+  });
+
+  it("rejects canonical duplicates expressed with percent-encoded names", () => {
+    for (const uri of [
+      "https://example.com/callback?tenant=one&ten%61nt=two",
+      "https://example.com/callback?x=1&x=2",
+    ]) expect(redirectUri.safeParse(uri).success).toBe(false);
+  });
+
   it("rejects duplicate query names, including distinct values", () => {
     expect(redirectUri.safeParse("https://example.com/callback?tenant=a&tenant=b").success).toBe(false);
     expect(redirectUri.safeParse("https://example.com/callback?tenant=a&tenant=a").success).toBe(false);
