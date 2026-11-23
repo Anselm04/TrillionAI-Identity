@@ -13,6 +13,7 @@ import { z } from "zod";
 import { config } from "./config.js";
 import { admin, publicAuthClient } from "./supabase.js";
 import { guard, type AuthRequest } from "./guards.js";
+import { refreshedSessionBinding, refreshedSessionDecision } from "./refresh-session-guard.js";
 import { hooks } from "./hooks.js";
 import { initializeStripeBilling } from "./stripe-bootstrap.js";
 import { cancelDirectSubscriptionVerified, BillingVerificationError } from "./billing.js";
@@ -128,8 +129,30 @@ app.post("/auth/refresh", limiter, wrap(async (req, res) => {
   const { data, error } = await publicAuthClient().auth.refreshSession({ refresh_token: v.data.refresh_token });
   if (error?.status && error.status >= 500) { res.status(503).json({ error: "authentication_unavailable" }); return; }
   if (error || !data.session || !data.user?.email_confirmed_at) { res.status(401).json({ error: "session_expired" }); return; }
-  res.json({ access_token: data.session.access_token, refresh_token: data.session.refresh_token,
-    expires_at: data.session.expires_at });
+  // A successful refresh by itself is insufficient: bind the returned JWT to
+  // the provider-verified user, then require its session to remain active.
+  // Never return freshly rotated credentials while this check is unresolved.
+  const refreshedToken=data.session.access_token;
+  const {data:verified,error:verificationError}=await publicAuthClient().auth.getUser(refreshedToken);
+  if(verificationError?.status && verificationError.status>=500){
+    res.status(503).json({error:"authentication_unavailable"});return;
+  }
+  if(verificationError||!verified.user){
+    res.status(401).json({error:"session_expired"});return;
+  }
+  const binding=refreshedSessionBinding({
+    accessToken:refreshedToken,refreshUserId:data.user.id,
+    verifiedUserId:verified.user.id,verifiedEmailConfirmed:Boolean(verified.user.email_confirmed_at),
+  });
+  if(!binding){res.status(401).json({error:"session_expired"});return;}
+  const {data:active,error:inventoryError}=await admin.rpc("identity_session_active",{
+    p_user:binding.userId,p_session:binding.sessionId,
+  });
+  const decision=refreshedSessionDecision(active,Boolean(inventoryError));
+  if(decision==="unavailable"){res.status(503).json({error:"session_validation_unavailable"});return;}
+  if(decision==="revoked"){res.status(401).json({error:"session_revoked"});return;}
+  res.json({ access_token:refreshedToken, refresh_token:data.session.refresh_token,
+    expires_at:data.session.expires_at });
 }));
 app.post("/auth/logout", guard("customer", true), wrap(async (req, res) => {
   const parsed = z.object({ scope: z.enum(["local", "global", "others"]).default("local") }).safeParse(req.body ?? {});
