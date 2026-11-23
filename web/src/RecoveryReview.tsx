@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { api } from "./api";
 
 type RecoveryCase = {
+  case_id: string;
+  case_version: number;
   user_id: string;
   requested_role: "customer" | "admin" | "owner";
   created_at: string;
@@ -138,12 +140,13 @@ export function RecoveryReview({isOwner}:{isOwner:boolean}) {
     <button disabled={busy} onClick={()=>void load()}>{loaded?"Refresh pending cases":"View pending cases"}</button>
     {error&&<p role="alert">{error}</p>}
     {loaded&&cases.length===0&&<p>No pending cases in this page.</p>}
-    {cases.map(item=><div className="box" key={item.user_id}>
+    {cases.map(item=><div className="box" key={item.case_id}>
       <p><strong>Account:</strong> <code>{item.user_id}</code></p>
+      <p><strong>Recovery case:</strong> <code>{item.case_id}</code> (version {item.case_version})</p>
       <p>Role recorded at request: {item.requested_role}</p>
       <p>Requested: {new Date(item.created_at).toLocaleString()}</p>
-      <ReviewAttestation caseId={item.user_id}/>
-      <RecoveryAssessment caseId={item.user_id} isOwner={isOwner}/>
+      <ReviewAttestation caseId={item.case_id}/>
+      <RecoveryAssessment caseId={item.case_id} isOwner={isOwner}/>
     </div>)}
     {loaded&&cursor!==null&&<button className="secondary" disabled={busy} onClick={()=>void load()}>First page</button>}
     {loaded&&nextCursor&&<button className="secondary" disabled={busy} onClick={()=>void load(nextCursor)}>Next page</button>}
