@@ -18,7 +18,7 @@ export function SessionInventory(){
 
   useEffect(()=>{
     const {data:{subscription}}=supabase.auth.onAuthStateChange((event)=>{
-      if(event==="SIGNED_OUT" || event==="SIGNED_IN" || event==="USER_DELETED"){
+      if(event==="SIGNED_OUT" || event==="SIGNED_IN"){
         operations.current.invalidate();
         running.current=false;
         setRows(null);
