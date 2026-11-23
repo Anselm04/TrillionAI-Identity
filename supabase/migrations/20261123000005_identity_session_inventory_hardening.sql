@@ -36,7 +36,7 @@ begin
  delete from auth.sessions s
  where s.id=p_target and s.user_id=p_user;
  return found;
-end
+end;
 $revoke$;
 
 create or replace function public.identity_session_active(p_user uuid,p_session uuid)
