@@ -541,7 +541,7 @@ app.post("/v1/service-credentials/introspect",limiter,wrap(async(req,res)=>{
  const header=req.header("authorization")??"";
  const match=/^Bearer (tai_sk_[0-9a-f]{64})$/.exec(header);
  if(!match){res.status(401).json({error:"invalid_service_credential"});return;}
- const {data,error}=await admin.rpc("identity_introspect_service_credential",{p_digest:digestServiceKey(match[1])});
+ const {data,error}=await admin.rpc("identity_introspect_service_credential",{p_digest:digestServiceKey(match[1]!)});
  if(error){res.status(503).json({error:"credential_validation_unavailable"});return;}
  if(!data){res.status(401).json({error:"invalid_service_credential"});return;}
  res.json({active:true,...data});

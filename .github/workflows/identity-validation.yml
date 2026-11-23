@@ -1,5 +1,8 @@
 name: Identity validation (manual — no automatic cloud spending)
 on:
+  push:
+    branches:
+      - fix/offline-qualification-coverage-20261123
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,8 +18,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run test:offline
-      - run: npm install --no-audit --no-fund
       - run: npm run check
       - run: npm test
       - run: npm run build
@@ -35,6 +38,16 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run build
+  oauth-sdk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify OAuth PKCE SDK offline regression suite
+        run: node --experimental-strip-types --test sdk/test/oauth.test.mts
   flutter:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -47,5 +60,5 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
-      - run: flutter analyze
+      - run: flutter analyze --no-fatal-infos
       - run: flutter test

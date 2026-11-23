@@ -1,4 +1,4 @@
-import { authenticatedIdentityTokenAudience, authenticatedSessionId } from "./session-id.js";
+import { authenticatedIdentityTokenAudience, authenticatedSessionId, authenticatedSessionAssurance } from "./session-id.js";
 import type { Request, RequestHandler } from "express";
 import { admin, publicAuthClient } from "./supabase.js";
 import { checkAccess, type Role } from "./authz.js";
@@ -28,12 +28,14 @@ export function guard(required: Role = "customer", allowMfaPending = false): Req
         res.status(503).json({ error: "authorization_unavailable" }); return;
       }
       const role: Role = (roleRow?.role as Role | undefined) ?? "customer";
-      const { data: mfaData, error: mfaError } = await authClient.auth.mfa.getAuthenticatorAssuranceLevel(token);
-      if (mfaError || !mfaData) { res.status(503).json({ error: "mfa_unavailable" }); return; }
+      // Supabase Auth already verified this bearer with getUser(token), and
+      // Identity validated its active session above. Use only that validated
+      // token's issuer-signed MFA claims, never untrusted client input.
+      const assurance = authenticatedSessionAssurance(token, user.id);
+      if (!assurance) { res.status(401).json({ error: "invalid_assurance" }); return; }
       const factor = user.factors?.find(f => f.factor_type === "totp" && f.status === "verified");
-      const aal = mfaData.currentLevel;
-      if (aal !== "aal1" && aal !== "aal2") { res.status(401).json({ error: "invalid_assurance" }); return; }
-      const latestTotp = latestVerifiedTotpTimestamp(mfaData.currentAuthenticationMethods);
+      const aal = assurance.aal;
+      const latestTotp = latestVerifiedTotpTimestamp(assurance.methods);
       // The AAL comes from validated Supabase Auth (not an unverified JWT decode).
       const needsMfa = Boolean(factor) && aal !== "aal2";
       if (!allowMfaPending || required !== "customer") {
