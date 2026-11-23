@@ -28,7 +28,16 @@ class IdentityApi {
           const ['localhost', '127.0.0.1', '10.0.2.2'].contains(base.host))) {
       throw StateError('Identity API requires HTTPS outside local development.');
     }
-    final req = http.Request('POST', base.resolve(path));
+    if (base.userInfo.isNotEmpty || base.hasQuery || base.hasFragment ||
+        base.host.isEmpty || (base.path.isNotEmpty && base.path != '/')) {
+      throw StateError('Invalid Identity API base URL.');
+    }
+    final target = base.replace(path: path, query: null, fragment: null);
+    if (target.scheme != base.scheme || target.host != base.host ||
+        target.port != base.port) {
+      throw StateError('Cross-origin Identity API request rejected.');
+    }
+    final req = http.Request('POST', target);
     req.followRedirects = false;
     req.headers['Content-Type'] = 'application/json';
     req.body = jsonEncode(body);
@@ -47,6 +56,7 @@ class IdentityApi {
       throw IdentityRequestException(response.statusCode,
         data['error']?.toString() ?? 'Request failed', data);
     }
+    if (data.isEmpty) throw StateError('Invalid identity API response.');
     return data;
   }
 
