@@ -1,0 +1,27 @@
+name: Identity PR17 offline security qualification
+on:
+  push:
+    branches:
+      - test/stripe-webhook-security-regressions-20261123
+permissions:
+  contents: read
+jobs:
+  offline-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Install backend test dependencies (no scripts or audit)
+        working-directory: backend
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Backend offline regression suite including Stripe webhook
+        run: node --experimental-strip-types --test backend/test/*.test.mjs
+      - name: OAuth SDK security regressions
+        run: node --experimental-strip-types --test sdk/test/oauth.test.mts
+      - name: Web offline security regressions
+        run: node --experimental-strip-types --test web/test/*.test.mjs
