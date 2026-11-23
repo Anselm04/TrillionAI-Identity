@@ -239,7 +239,7 @@ app.delete("/account/sessions/:id", limiter, guard(), wrap(async (req,res) => {
   const {data,error} = await admin.rpc("identity_revoke_session", {p_user:principal(req).uid,p_current:current,p_target:target.data});
   if (error) { res.status(503).json({error:"session_revocation_unavailable"}); return; }
   if (data !== true) { res.status(404).json({error:"session_not_found"}); return; }
-  await audit("session_revoked", principal(req).uid);
+  // The revocation RPC writes the audit event atomically with deletion.
   res.status(204).end();
 }));
 app.get("/account/profile", guard(), wrap(async (req, res) => {
