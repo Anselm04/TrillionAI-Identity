@@ -66,11 +66,25 @@ class IdentityApi {
     final token = started?.accessToken;
     if (token == null) throw StateError('Please sign in.');
     final base = Uri.parse(apiUrl);
-    if (base.scheme != 'https' && !(base.scheme == 'http' && const ['localhost','127.0.0.1','10.0.2.2'].contains(base.host))) {
+    if (base.scheme != 'https' &&
+        !(base.scheme == 'http' &&
+          const ['localhost', '127.0.0.1', '10.0.2.2'].contains(base.host))) {
       throw StateError('Identity API requires HTTPS outside local development.');
     }
-    if (!path.startsWith('/') || path.startsWith('//')) throw ArgumentError('Invalid API path');
-    final req = http.Request(method, Uri.parse('$apiUrl$path'));
+    if (base.userInfo.isNotEmpty || base.hasQuery || base.hasFragment ||
+        base.host.isEmpty || (base.path.isNotEmpty && base.path != '/')) {
+      throw StateError('Invalid Identity API base URL.');
+    }
+    if (!path.startsWith('/') || path.startsWith('//') ||
+        path.contains('?') || path.contains('#') || path.contains('\\')) {
+      throw ArgumentError('Invalid API path');
+    }
+    final target = base.replace(path: path, query: null, fragment: null);
+    if (target.scheme != base.scheme || target.host != base.host ||
+        target.port != base.port) {
+      throw StateError('Cross-origin Identity API request rejected.');
+    }
+    final req = http.Request(method, target);
     req.followRedirects = false;
     req.headers.addAll({
       'Authorization': 'Bearer $token',
