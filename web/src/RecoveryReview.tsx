@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { api } from "./api";
 
 type RecoveryCase = {
@@ -18,7 +18,7 @@ function ReviewAttestation({caseId}:{caseId:string}) {
   const [busy,setBusy]=useState(false);
   const [status,setStatus]=useState("");
   const [recorded,setRecorded]=useState(false);
-  async function submit(event:React.FormEvent) {
+  async function submit(event:FormEvent) {
     event.preventDefault();
     if (busy || recorded) return;
     if(!/^[a-f0-9]{64}$/.test(digest)){setStatus("Provide a 64-character lowercase SHA-256 reference fingerprint.");return;}
