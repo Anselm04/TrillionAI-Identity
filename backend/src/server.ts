@@ -19,6 +19,7 @@ import { cancelDirectSubscriptionVerified, BillingVerificationError } from "./bi
 import { directBillingIsCancelled, storeSubscriptionsRequireAcknowledgement } from "./deletion.js";
 import { canRequestLostMfaRecovery } from "./mfa-recovery.js";
 import { recoveryQueueQuery, recoveryQueuePage, type RecoveryQueueCase } from "./mfa-recovery-queue.js";
+import { recoveryReviewInput, mayAttestRecoveryReview } from "./mfa-recovery-review.js";
 
 export const app = express();
 app.disable("x-powered-by");
@@ -587,6 +588,28 @@ app.get("/owner/mfa-recovery/requests",guard("owner"),wrap(async(req,res)=>{
    && typeof row.created_at==="string");
  if(!valid){res.status(503).json({error:"recovery_queue_invalid"});return;}
  res.json(recoveryQueuePage(data as RecoveryQueueCase[],limit));
+}));
+// An attestation records a privileged reviewer's assertion about independently
+// held verification evidence. It is NOT an approval, unlock or factor reset.
+// Guard enforces AAL2 + recent TOTP; database re-checks reviewer role, active
+// session, self-review and one-review-per-reviewer under a case-row lock.
+app.post("/admin/mfa-recovery/requests/:caseUserId/reviews",limiter,guard("admin"),wrap(async(req,res)=>{
+ const caseId=z.string().uuid().safeParse(req.params.caseUserId);
+ const input=recoveryReviewInput.safeParse(req.body);
+ if(!caseId.success||!input.success){res.status(400).json({error:"invalid_recovery_review"});return;}
+ const p=principal(req);
+ if(!mayAttestRecoveryReview({
+   reviewerId:p.uid,caseUserId:caseId.data,reviewerRole:p.role,
+   reviewerSession:p.sessionId,aal:p.aal,recentMfaAt:p.recentMfaAt
+ })){res.status(403).json({error:"recovery_review_forbidden"});return;}
+ const {data,error}=await admin.rpc("identity_record_mfa_recovery_review",{
+   p_actor:p.uid,p_session:p.sessionId,p_case:caseId.data,
+   p_outcome:input.data.outcome,p_method:input.data.method,
+   p_evidence_sha256:input.data.evidence_reference_sha256
+ });
+ if(error){res.status(503).json({error:"recovery_review_unavailable"});return;}
+ if(data!==true){res.status(409).json({error:"recovery_review_rejected"});return;}
+ res.status(201).json({recorded:true,authorizationGranted:false,mfaChanged:false});
 }));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
