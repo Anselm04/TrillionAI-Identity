@@ -16,6 +16,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.16.0'
+      - name: Install backend test dependencies (no scripts or audit)
+        working-directory: backend
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Backend offline regression suite including Stripe webhook
         run: node --experimental-strip-types --test backend/test/*.test.mjs
       - name: OAuth SDK security regressions
