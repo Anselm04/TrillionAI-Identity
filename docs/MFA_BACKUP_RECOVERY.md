@@ -126,3 +126,29 @@ remain unapplied. A separate, externally verified provider recovery procedure
 and database integration qualification are necessary before recovery execution
 could be considered. This release deliberately contains **no** MFA reset
 endpoint, factor removal, privileged override or access token issuance.
+
+## Rejection-only resolution of disputed cases
+
+The only automated case closure implemented here is **rejection**, never approval.
+When a privileged reviewer has already attested `insufficient_evidence`, the
+owner may reject and close that disputed case using
+`POST /owner/mfa-recovery/requests/:caseUserId/reject` with the exact body
+`{"confirm":"REJECT"}`. The existing owner guard requires a verified
+Supabase session, owner role, AAL2 and recent TOTP. Rejection is unavailable
+for the owner's own case, any case whose requester is currently the owner, or
+any case that was recorded with the owner role. Owner recovery always requires
+external governance.
+
+The `20261123000003_identity_mfa_recovery_rejections.sql` migration verifies
+inside PostgreSQL that the actor is still the owner with an active session,
+that the case is currently pending, and that a **different current admin/owner**
+reviewer recorded `insufficient_evidence`. It locks the case row, inserts a
+unique rejection decision, closes the case, and writes the audit record in one
+transaction. The rejection has no access to provider MFA-factor mutation,
+account unlock, bearer issuance, session permissions or role assignments.
+
+**Limitations:** The recovery request table currently allows only one
+lifetime case per account, including closed cases. Re-filing after closure
+requires a separate case-versioning migration; the application must not claim
+this is already available. This change is source-only until migrations are
+applied and database transaction/RLS behavior is independently verified.
