@@ -1,4 +1,4 @@
-import { RequestGeneration } from "./request-generation";
+import { RequestGeneration } from "./request-generation.ts";
 
 /** Serializes account UI mutations, including before React sets disabled state. */
 export class AccountOperationGate {
