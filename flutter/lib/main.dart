@@ -8,6 +8,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'identity_api.dart';
 import 'account_operation_generation.dart';
+import 'mfa_check_generation.dart';
 import 'organisation_invitations.dart';
 import 'validation.dart';
 import 'mfa_factor_selection.dart';
@@ -46,6 +47,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   IdentityApi get api => IdentityApi(supabase);
   bool busy = false;
   final accountOperations = AccountOperationGeneration();
+  final mfaChecks = MfaCheckGeneration();
   int? operationTicket;
   bool needsMfa = false;
   String page = 'signin';
@@ -73,6 +75,16 @@ class _IdentityScreenState extends State<IdentityScreen> {
         subscriptions = null;
         accountSessions = null;
       }
+      if (state.event == AuthChangeEvent.signedIn ||
+          state.event == AuthChangeEvent.signedOut ||
+          state.event == AuthChangeEvent.tokenRefreshed) {
+        mfaChecks.invalidate();
+        // Re-evaluate assurance and server role before showing account actions.
+        needsMfa = false;
+        factorId = null;
+        verifiedFactorIds = [];
+        accountRole = null;
+      }
       if (state.event == AuthChangeEvent.passwordRecovery) page = 'reset';
       if (state.event == AuthChangeEvent.signedOut) {
         page = 'signin'; needsMfa = false; factorId = null; verifiedFactorIds = []; accountRole = null;
@@ -89,32 +101,62 @@ class _IdentityScreenState extends State<IdentityScreen> {
   }
 
   Future<void> checkMfa() async {
-    if (supabase.auth.currentSession == null) {
-      if (mounted) setState(() { needsMfa = false; factorId = null; verifiedFactorIds = []; accountRole = null; });
-      return;
+    final ticket = mfaChecks.begin();
+    final started = supabase.auth.currentSession;
+    final startedToken = started?.accessToken;
+    final startedUser = started?.user.id;
+    bool current() {
+      final latest = supabase.auth.currentSession;
+      return mounted && mfaChecks.isCurrent(ticket, startedToken, startedUser,
+          latest?.accessToken, latest?.user.id);
     }
+
+    // Any new check temporarily hides privileged account controls.
+    if (mounted) setState(() {
+      accountRole = null;
+      needsMfa = false;
+      factorId = null;
+      verifiedFactorIds = [];
+    });
+    if (started == null) return;
+
     try {
-      final level = supabase.auth.mfa.getAuthenticatorAssuranceLevel();
       final factors = await supabase.auth.mfa.listFactors();
-      final totp = factors.totp.where((f) => f.status == FactorStatus.verified).toList();
-      final ids = totp.map((factor) => factor.id).toSet().toList();
+      if (!current()) return;
+      // Read the assurance state only after the asynchronous factor lookup,
+      // not from a possibly outdated token before the await.
+      final level = supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      final ids = factors.totp
+          .where((factor) => factor.status == FactorStatus.verified)
+          .map((factor) => factor.id).toSet().toList();
       final pending = ids.isNotEmpty &&
         level.currentLevel != AuthenticatorAssuranceLevels.aal2;
-      if (mounted) setState(() {
+      if (!current()) return;
+      setState(() {
         factorId = chooseVerifiedFactor(ids, factorId);
         verifiedFactorIds = ids;
         needsMfa = pending;
+        accountRole = null;
       });
-      if (!pending) {
-        try {
-          final me = await api.request('GET', '/me');
-          if (mounted) setState(() => accountRole = me['role'] as String?);
-        } catch (_) {
-          if (mounted) setState(() => accountRole = null);
+      if (pending) return;
+
+      try {
+        final me = await api.request('GET', '/me');
+        if (!current()) return;
+        final role = me['role'];
+        if (role is! String || !const ['customer','admin','owner'].contains(role)) {
+          throw StateError('Account role verification unavailable.');
         }
+        setState(() => accountRole = role);
+      } catch (_) {
+        if (current()) setState(() => accountRole = null);
       }
     } catch (_) {
-      if (mounted) setState(() => message = 'MFA check unavailable. Please retry.');
+      if (current()) setState(() {
+        accountRole = null;
+        needsMfa = false;
+        message = 'MFA check unavailable. Please retry.';
+      });
     }
   }
 
@@ -583,6 +625,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
 
   @override
   void dispose() {
+    mfaChecks.invalidate();
     accountOperations.invalidate();
     operationTicket = null;
     changes.cancel();
