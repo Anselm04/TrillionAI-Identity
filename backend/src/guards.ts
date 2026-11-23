@@ -4,7 +4,7 @@ import { admin, publicAuthClient } from "./supabase.js";
 import { checkAccess, type Role } from "./authz.js";
 import { latestVerifiedTotpTimestamp } from "./mfa.js";
 
-export type Principal = { sessionId: string; uid: string; email: string; role: Role; token: string; aal: string; totpFactorId?: string };
+export type Principal = { sessionId: string; uid: string; email: string; role: Role; token: string; aal: string; recentMfaAt?: number; totpFactorId?: string };
 export type AuthRequest = Request & { principal?: Principal };
 export function guard(required: Role = "customer", allowMfaPending = false): RequestHandler {
   return async (req: AuthRequest, res, next) => {
@@ -46,7 +46,7 @@ export function guard(required: Role = "customer", allowMfaPending = false): Req
       } else if (needsMfa) {
         // allow only MFA completion and logout while still at AAL1.
       }
-      req.principal = { sessionId, uid: user.id, email: user.email ?? "", role, token, aal, totpFactorId: factor?.id };
+      req.principal = { sessionId, uid: user.id, email: user.email ?? "", role, token, aal, recentMfaAt: latestTotp, totpFactorId: factor?.id };
       next();
     } catch (error) { next(error); }
   };

@@ -56,3 +56,42 @@ user ID, status filter or provider factor ID from the browser.
 - The migration that creates `identity_mfa_recovery_requests` must be deployed
   separately with owner authorization before this queue can operate. Offline
   unit tests cannot certify database RLS or provider integration.
+
+## Independent review attestations (not recovery authorization)
+
+A separate audit-only workflow records a reviewer’s declaration that independently
+held evidence was examined. The endpoint
+`POST /admin/mfa-recovery/requests/:caseUserId/reviews` requires `guard("admin")`
+and a recent provider-verified AAL2 TOTP challenge. The owner or an admin can
+review a case, but **never their own case**.
+
+The request body is strictly limited to `outcome` (`identity_evidence_sighted`
+or `insufficient_evidence`), `method` (`in_person`, `verified_callback`,
+or `verified_external_record`) and `evidence_reference_sha256`, a lowercase
+64-character SHA-256 fingerprint of an independent reference held outside
+Identity. Do not submit an identity document, personal data, passwords, OTP
+codes or a fingerprint of a low-entropy personal identifier.
+
+The `identity_mfa_recovery_reviews` database migration provides:
+
+- A composite primary key preventing a reviewer from attesting twice to one case.
+- Database checks against reviewing your own case, invalid method or outcome,
+  unexpected evidence formats, inactive reviewer sessions and non-privileged
+  reviewers. The pending case row is locked during each insert.
+- An append-only review record and a corresponding audit entry written in the
+  same transaction, using an invoker-rights function available only to
+  `service_role`.
+- No self-service or reviewer action that changes MFA factors, roles, tokens,
+  sessions, entitlements, or account status.
+
+The web queue is available to both admin and owner roles; its server-side
+`/admin/mfa-recovery/requests` endpoint requires fresh privileged MFA.
+These attestations are **human declarations, not automated verification
+proof**. The present engineering does not automatically resolve or authorize
+account recovery, even if multiple attestations say evidence was sighted.
+
+This migration depends on `20261123000001_identity_mfa_recovery_intake.sql`.
+Both are unapplied until a separately authorized deployment. PostgreSQL
+transactions and Supabase provider operations require their own integration
+qualification: successful Node, web and Flutter CI is not proof of running
+database state.
