@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { recoveryQueueQuery, recoveryQueuePage } from "./mfa-recovery-queue.js";
 const id=n=>`${String(n).padStart(8,"0")}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`;
-const row=n=>({user_id:id(n),requested_role:"customer" as const,created_at:"2026-11-23T00:00:00Z"});
+const row=n=>({case_id:id(n),user_id:id(100),case_version:n,requested_role:"customer" as const,created_at:"2026-11-23T00:00:00Z"});
 describe("owner MFA recovery queue validation",()=>{
  it("defaults to a small, bounded read page",()=>{
    expect(recoveryQueueQuery.parse({})).toEqual({limit:25});
