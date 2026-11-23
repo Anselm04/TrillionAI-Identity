@@ -207,7 +207,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove')),
         ]));
     if (approved != true) return;
-    await supabase.auth.mfa.unenroll(factorId: id);
+    await supabase.auth.mfa.unenroll(id);
     await supabase.auth.refreshSession();
     await checkMfa();
   });
@@ -293,7 +293,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
     final address=passwordlessEmail;
     if(address==null||address!=email.text.trim().toLowerCase())throw StateError('Request a code for this address first.');
     final value=passwordlessCode.text.trim();
-    if(!RegExp(r'^[0-9]{6,10} => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    if(!RegExp(r'^[0-9]{6,10}
     Text(page == 'signup' ? 'Create account' : page == 'forgot'
       ? 'Forgot password' : page == 'resend' ? 'Resend verification' : 'Sign in',
       style: Theme.of(context).textTheme.headlineSmall),
@@ -522,6 +522,13 @@ class _IdentityScreenState extends State<IdentityScreen> {
       page == 'forgot' ? forgot : page == 'resend' ? resend : signin,
       child: Text(page == 'signup' ? 'Create account' : page == 'forgot'
         ? 'Send recovery email' : page == 'resend' ? 'Resend email' : 'Sign in')),
+    if(page=='signin') ...[
+      OutlinedButton(onPressed:busy?null:requestPasswordless,child:const Text('Send passwordless sign-in email')),
+      if(passwordlessEmail!=null)...[
+        field('Email code (if included)',passwordlessCode),
+        OutlinedButton(onPressed:busy?null:verifyPasswordless,child:const Text('Verify email code')),
+      ],
+    ],
     Wrap(children: [
       TextButton(onPressed: () => setState(() => page = 'signup'), child: const Text('Create account')),
       TextButton(onPressed: () => setState(() => page = 'signin'), child: const Text('Sign in')),
@@ -708,6 +715,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   @override
   void dispose() {
     changes.cancel();
+    passwordlessCode.dispose();
     for (final c in [email, password, currentPassword, confirm, code, displayName, newEmail, deletePassword, deleteConfirmation]) {
       c.dispose();
     }
