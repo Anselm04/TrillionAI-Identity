@@ -569,6 +569,27 @@ app.post("/v1/service-credentials/introspect",limiter,wrap(async(req,res)=>{
 // Owner-only case inventory. The existing owner guard enforces verified email,
 // an active session, AAL2 and a recent TOTP challenge. No recovery capabilities
 // are issued; the output deliberately omits provider factor and session tokens.
+// Reviewers need the same metadata to attest independently. Access requires a
+// current global admin/owner role and freshly verified MFA, not tenant roles.
+app.get("/admin/mfa-recovery/requests",guard("admin"),wrap(async(req,res)=>{ const parsed=recoveryQueueQuery.safeParse(req.query);
+ if(!parsed.success){res.status(400).json({error:"invalid_recovery_queue_query"});return;}
+ const {after,limit}=parsed.data;
+ let query=admin.from("identity_mfa_recovery_requests")
+   .select("user_id,requested_role,created_at")
+   .eq("status","pending")
+   .order("user_id",{ascending:true})
+   .limit(limit+1);
+ if(after)query=query.gt("user_id",after);
+ const {data,error}=await query;
+ if(error||!Array.isArray(data)){
+   res.status(503).json({error:"recovery_queue_unavailable"});return;
+ }
+ const valid=data.every(row=>typeof row.user_id==="string"
+   && ["customer","admin","owner"].includes(row.requested_role)
+   && typeof row.created_at==="string");
+ if(!valid){res.status(503).json({error:"recovery_queue_invalid"});return;}
+ res.json(recoveryQueuePage(data as RecoveryQueueCase[],limit));
+}));
 app.get("/owner/mfa-recovery/requests",guard("owner"),wrap(async(req,res)=>{
  const parsed=recoveryQueueQuery.safeParse(req.query);
  if(!parsed.success){res.status(400).json({error:"invalid_recovery_queue_query"});return;}
