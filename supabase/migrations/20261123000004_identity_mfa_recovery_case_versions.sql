@@ -79,8 +79,8 @@ begin
  if public.identity_session_active(p_actor,p_session) is distinct from true then return false; end if;
  select role into current_role from public.identity_global_roles where user_id=p_actor;
  if coalesce(current_role,'customer')<>p_role then return false; end if;
- perform 1 from auth.users where id=p_actor for update;
- if not found then return false; end if;
+ -- Lock per account for concurrent re-requests, without UPDATE rights on auth.users.
+ perform pg_advisory_xact_lock(hashtextextended(p_actor::text, 20261123));
  if exists(select 1 from public.identity_mfa_recovery_cases
      where user_id=p_actor and status='pending') then return true; end if;
  select coalesce(max(case_version),0)+1 into next_version
