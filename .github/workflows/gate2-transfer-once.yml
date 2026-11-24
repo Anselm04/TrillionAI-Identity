@@ -8,7 +8,7 @@ on:
 permissions: {}
 jobs:
   transfer:
-    if: github.repository == 'Anselm04/TrillionAI-Identity' && github.ref == 'refs/heads/docs/evidence-based-engineering-20261125' && github.event.before == '9f86bf71cad6956cd75c015c4d846e7d938543f1'
+    if: github.repository == 'Anselm04/TrillionAI-Identity' && github.ref == 'refs/heads/docs/evidence-based-engineering-20261125' && github.event.before == 'f37c472519efe0916c241c3fc77c6d1fb02b4184'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -19,10 +19,12 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 2
       - name: Verify source, archives and exact destination files
         env:
           GH_TOKEN: ${{ github.token }}
-          EXPECTED_PARENT: 9f86bf71cad6956cd75c015c4d846e7d938543f1
+          EXPECTED_PARENT: f37c472519efe0916c241c3fc77c6d1fb02b4184
+          ARTIFACT_SOURCE: 9f86bf71cad6956cd75c015c4d846e7d938543f1
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
@@ -32,7 +34,7 @@ jobs:
           import hashlib, json, os, pathlib, subprocess, tempfile, zipfile
           repo = "Anselm04/TrillionAI-Identity"
           run = "45510421898"
-          parent = os.environ["EXPECTED_PARENT"]
+          parent = os.environ["ARTIFACT_SOURCE"]
           def api(path):
               return json.loads(subprocess.check_output(["gh","api",path]))
           result = api(f"repos/{repo}/actions/runs/{run}")
