@@ -1,0 +1,1224 @@
+{
+  "revision": "ca74a61593c412c17295dd02f9a751fa62f9d83a",
+  "tree": "ca74a61593c412c17295dd02f9a751fa62f9d83a",
+  "truncated": false,
+  "trackedFiles": 153,
+  "entries": [
+    {
+      "path": ".github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4100059b01988108010aee97b9ddd338afc6b4a8"
+    },
+    {
+      "path": ".github/workflows",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "20690595a44c2a0fb332b4a19443b723a0ae829a"
+    },
+    {
+      "path": ".github/workflows/identity-pr15-offline.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d2613a6227a589180b52c54c51655486f984850d",
+      "size": 956
+    },
+    {
+      "path": ".github/workflows/identity-pr17-offline.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2fe2fc29c560b70667f8a0280aaecf5dd8379a59",
+      "size": 978
+    },
+    {
+      "path": ".github/workflows/identity-validation.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fd5ba7cab44a910283cd3dd162f1d426c2d639c8",
+      "size": 2909
+    },
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1301e01e5873a3fe085e2d5756824ee9d9171133",
+      "size": 2243
+    },
+    {
+      "path": "AGENTS.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ccd58ef2d7834da64dd70424dd50ba03e0300ee3",
+      "size": 25697
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "09f5d5b4efab2648de8820b85d424320dde2a040",
+      "size": 8078
+    },
+    {
+      "path": "backend",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "de590d62bd95315e226e77babf7f32b48bfba715"
+    },
+    {
+      "path": "backend/.env.example",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b17d0932dc20dd9150bb2059d08d1fac5a3c4645",
+      "size": 579
+    },
+    {
+      "path": "backend/package.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "175a08c1a57daccce23fc4d92bf671675fd93502",
+      "size": 861
+    },
+    {
+      "path": "backend/scripts",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0536a2dd27de2a6b64f26e4e900bd1a6cabfb0ee"
+    },
+    {
+      "path": "backend/scripts/assign-owner.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4fbc18f83bfe35621837a792f55d508d3a4f4392",
+      "size": 1440
+    },
+    {
+      "path": "backend/src",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0743f3888ece33bfd378e930ecb6a561e46aa6ff"
+    },
+    {
+      "path": "backend/src/account-lifecycle.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "05e2dd27ef6790cd513bfde89eec8cc27311f8ed",
+      "size": 1092
+    },
+    {
+      "path": "backend/src/authz.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6b6b7a0c6d23bcb96fdd9e9f11f7238ab594d596",
+      "size": 1201
+    },
+    {
+      "path": "backend/src/authz.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f49d24a7b40b05a58104c672a1be2757343af9ac",
+      "size": 1806
+    },
+    {
+      "path": "backend/src/billing.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ea07f706b0d8f46e514dc78e22163de4b412be25",
+      "size": 1878
+    },
+    {
+      "path": "backend/src/billing.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fe1dc1147fe39597490da092f821df3044620360",
+      "size": 1432
+    },
+    {
+      "path": "backend/src/config.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fe8344840184030fb300daebd2136e1e47da3fdd",
+      "size": 1269
+    },
+    {
+      "path": "backend/src/deletion.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a81746f1eeb1f5d358742826adb43551f989239",
+      "size": 1150
+    },
+    {
+      "path": "backend/src/deletion.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ad29ce642aebb4d1ed8c0215a91dd359b901c072",
+      "size": 403
+    },
+    {
+      "path": "backend/src/developer-client.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e90bd6e8468a9969ba1416d28cc0fdce903327dc",
+      "size": 2285
+    },
+    {
+      "path": "backend/src/developer-client.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f3a8987ae7829a6e35fcd47d364d87eb6bc0ad23",
+      "size": 1383
+    },
+    {
+      "path": "backend/src/guards.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a6c5d2b1698a118ed72d6b04b21cb4f260d0b5d5",
+      "size": 3745
+    },
+    {
+      "path": "backend/src/hooks.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "41786813cc9fa9b5082441b34707ca612c954dcf",
+      "size": 1104
+    },
+    {
+      "path": "backend/src/invitations.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dc6e2523f5880063360fe0ae024af4e452ae93f6",
+      "size": 890
+    },
+    {
+      "path": "backend/src/lifecycle.contract.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1f7cc97c960a4a07ae8a3f4e7bf71fae00338a1c",
+      "size": 1840
+    },
+    {
+      "path": "backend/src/mfa-recovery-assessment.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "446ab965c08e9a987f782b55ccc757ce9f8cb830",
+      "size": 2466
+    },
+    {
+      "path": "backend/src/mfa-recovery-assessment.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c5f77dd2098ba28adf25da93b089d168d8fa3dbc",
+      "size": 2522
+    },
+    {
+      "path": "backend/src/mfa-recovery-queue.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f3c8866b146e52575887f4ef1ed730945e0c4838",
+      "size": 1393
+    },
+    {
+      "path": "backend/src/mfa-recovery-queue.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cc6c0f029293ea9d20c9392260d74d2fe36530db",
+      "size": 940
+    },
+    {
+      "path": "backend/src/mfa-recovery-rejection.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7517e9678b75c5f4e9e7da83f3608e7986fad719",
+      "size": 1630
+    },
+    {
+      "path": "backend/src/mfa-recovery-rejection.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e300f7ec5a4072d0d551c656468c45c51cc96940",
+      "size": 1016
+    },
+    {
+      "path": "backend/src/mfa-recovery-review.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "884e8ac32f766be51c879a36519b11e9027625f6",
+      "size": 1735
+    },
+    {
+      "path": "backend/src/mfa-recovery-review.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "60c7bb54f3ea82acc10b2c854db0b87fd8501f1d",
+      "size": 1224
+    },
+    {
+      "path": "backend/src/mfa-recovery.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "469d9bd81846b38c7af5d74e6b9a03dc133c3df9",
+      "size": 1025
+    },
+    {
+      "path": "backend/src/mfa-recovery.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c5fb0b82d1b17a1410dc7781f8da09fcb55db6fe",
+      "size": 556
+    },
+    {
+      "path": "backend/src/mfa.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5399e343267a836e5494197aae2b65fa96387357",
+      "size": 1070
+    },
+    {
+      "path": "backend/src/mfa.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "46c89d1b3e7d8d708d403981404f3ce30509f38e",
+      "size": 777
+    },
+    {
+      "path": "backend/src/organisation.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c406bb110edf575cf53a45b5987ce71651e1b377",
+      "size": 807
+    },
+    {
+      "path": "backend/src/organisation.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0400d62fb2b72232fc54b4dbb9549db8ab43bcfe",
+      "size": 903
+    },
+    {
+      "path": "backend/src/pagination.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6c318e44e901688418da8232a50445b0e1600365",
+      "size": 570
+    },
+    {
+      "path": "backend/src/refresh-session-guard.test.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d3492e749f8c48aff0171d317f4844c9a30ae3b9",
+      "size": 1884
+    },
+    {
+      "path": "backend/src/refresh-session-guard.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1f18e12018ebd085ee39adbd6aab6e41ef3a85ec",
+      "size": 1243
+    },
+    {
+      "path": "backend/src/server.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4f1bb945f24f64e27c08ebc67b663fca8b926fd5",
+      "size": 46809
+    },
+    {
+      "path": "backend/src/service-credentials.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ca62d5d649d5be19e28714afa73eea68b7994264",
+      "size": 1667
+    },
+    {
+      "path": "backend/src/session-id.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f9e9436a5dab9e1a7223cd2df87334a5dae12f35",
+      "size": 2779
+    },
+    {
+      "path": "backend/src/stripe-billing.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9c7c20731d549128d04e192564068e700c68c2f5",
+      "size": 5065
+    },
+    {
+      "path": "backend/src/stripe-bootstrap.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "124f1b6c678eb3d1962f4143c9786b663d58a340",
+      "size": 891
+    },
+    {
+      "path": "backend/src/stripe-checkout.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3aa9ae58d9c518b0b26235a28433a2342fd8d313",
+      "size": 2816
+    },
+    {
+      "path": "backend/src/stripe-webhook.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "600b16902d4f3b1df474693cb33f9993e279e4ad",
+      "size": 1961
+    },
+    {
+      "path": "backend/src/supabase.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5782d2957c0c26b6a8eb010ef3f9aa7d2eb478bd",
+      "size": 428
+    },
+    {
+      "path": "backend/test",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9f55af026663396717978e25bca5181782be81d8"
+    },
+    {
+      "path": "backend/test/invitations.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d4004d68d53557d772d36298521aae7ef959f2e4",
+      "size": 1119
+    },
+    {
+      "path": "backend/test/offline.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0a7db189eea5fd9270998b55094d9f35377e05b8",
+      "size": 4322
+    },
+    {
+      "path": "backend/test/pagination.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "20bf960bce34fa3a96bc47972984877619634242",
+      "size": 814
+    },
+    {
+      "path": "backend/test/service-credentials.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "71101af0e8cd71a2a3cd25876d7012afb6344e39",
+      "size": 1432
+    },
+    {
+      "path": "backend/test/session-id.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8d805ac72ca7e7cfadedeaedae43b6659d7d40ea",
+      "size": 1966
+    },
+    {
+      "path": "backend/test/stripe-billing.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "01c602c2caefb2b4fe31fd15c5a5f845bbea5b8f",
+      "size": 2872
+    },
+    {
+      "path": "backend/test/stripe-webhook.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "65f31962bf491f919b58c8323011f5bc278f8561",
+      "size": 3480
+    },
+    {
+      "path": "backend/tsconfig.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3d59a0ad6a70140468011365e3e8337b29580c1a",
+      "size": 389
+    },
+    {
+      "path": "docs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "7aed8ecea2de4e57bbd9dabbda9ba86a9a4b224e"
+    },
+    {
+      "path": "docs/APPROVED-IDENTITY-UI.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "62a7747e5b204fb0cac18cf211da4aad4d717fa8",
+      "size": 7973
+    },
+    {
+      "path": "docs/ARCHITECTURE-DECISION.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "17e79204f9408f4644318062d63f0db2d8dfb408",
+      "size": 2569
+    },
+    {
+      "path": "docs/EXECUTION_EVIDENCE.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dfc1fb0b9a1980341f78ff16dd11602e291a09f2",
+      "size": 6629
+    },
+    {
+      "path": "docs/LOCAL_QUALIFICATION.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ed8df9b9347df92ae0687a8ca81c91535f1c7d8a",
+      "size": 1291
+    },
+    {
+      "path": "docs/MFA_BACKUP_RECOVERY.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ed35ec81dad884a8598b9b83642c74d03c122dd5",
+      "size": 13148
+    },
+    {
+      "path": "docs/RUN_AND_ACCEPTANCE.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1abd7123377f6dabc8dc639676a648c2a7594fc4",
+      "size": 5551
+    },
+    {
+      "path": "docs/SERVICE_CREDENTIALS.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "15dec32cc27cc6a7f798e130cf0b64a03f860e84",
+      "size": 2867
+    },
+    {
+      "path": "docs/authentication-capability-register.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a8cda8c630beda75829fe060c800bc95d331ca6e",
+      "size": 4988
+    },
+    {
+      "path": "flutter",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "e2db7b635ab71bc8213d3462f8af395cc3e244ff"
+    },
+    {
+      "path": "flutter/lib",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "bd8ca74175052626ecd3a8a897496f0fbe046fc7"
+    },
+    {
+      "path": "flutter/lib/account_operation_generation.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8fcc761b5fd0d6d3308b7721166a9426cc233c69",
+      "size": 592
+    },
+    {
+      "path": "flutter/lib/developer_applications.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e208cabb906918fb722160369474f2310117141f",
+      "size": 4967
+    },
+    {
+      "path": "flutter/lib/identity_api.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7eecee37b6a9339dc351d1739dbc6f38ee277321",
+      "size": 2355
+    },
+    {
+      "path": "flutter/lib/main.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b2b07271f04355ab5e14c64018026684983b4afd",
+      "size": 28865
+    },
+    {
+      "path": "flutter/lib/mfa_check_generation.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "070682ac530f9b5615b0811c1ad5a9e6b264b98f",
+      "size": 533
+    },
+    {
+      "path": "flutter/lib/mfa_factor_selection.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a24d253aaece5ffdb8b67aab77259e4f44f1180",
+      "size": 364
+    },
+    {
+      "path": "flutter/lib/organisation_invitations.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "93e4fc8ac23c332d238f48254dd5172fe94d9f17",
+      "size": 3913
+    },
+    {
+      "path": "flutter/lib/service_credentials.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ddc1f6912557231434a2a9743d83b5c67499b3af",
+      "size": 4358
+    },
+    {
+      "path": "flutter/lib/session_continuity.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1e6abdc54036c62ae17d8ab28324da9e1952a2e7",
+      "size": 1156
+    },
+    {
+      "path": "flutter/lib/team_administration.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9c70bb2ccd0f363199bb162eeee208149e9f2d7e",
+      "size": 5484
+    },
+    {
+      "path": "flutter/lib/validation.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "92d44e400b395ae9b012f31f74ecdaa27ee780a5",
+      "size": 425
+    },
+    {
+      "path": "flutter/pubspec.yaml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8ed25019f7ab8306bf506a1008028e2e7b77fa42",
+      "size": 379
+    },
+    {
+      "path": "flutter/test",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "cb39a109167a5b0ece380f0e8a9c615dba6de245"
+    },
+    {
+      "path": "flutter/test/account_operation_generation_test.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c68742b60d2c54db0a8ae050935d160a38c4057e",
+      "size": 1136
+    },
+    {
+      "path": "flutter/test/mfa_check_generation_test.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "870c974c35f819c277f13728967888bea7c86d68",
+      "size": 1796
+    },
+    {
+      "path": "flutter/test/mfa_factor_selection_test.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e260efa08b814c7f25055d1bc8bb3c02d22dd3b8",
+      "size": 675
+    },
+    {
+      "path": "flutter/test/session_continuity_test.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "17605f0d41056cc10611277d4f4f7cfabbf2819b",
+      "size": 1274
+    },
+    {
+      "path": "flutter/test/validation_test.dart",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dd6cad730bdf3514d2d02996a260b1026e575ab7",
+      "size": 689
+    },
+    {
+      "path": "scripts",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "bfa3c70aa3fe61881a06247cade8cbd542f12ccd"
+    },
+    {
+      "path": "scripts/qualify-local.sh",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "e3486e49d4fd07d10a859a4bf3cad3f7e4de17a3",
+      "size": 1399
+    },
+    {
+      "path": "scripts/qualify-recovery-postgres.sh",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ea2d6e3a6a22d76a01c67c4b237f9f919bba9eba",
+      "size": 1156
+    },
+    {
+      "path": "scripts/test-recovery-bootstrap.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "52dd9af83c81672dd8aba1a3b10eda3e18e12623",
+      "size": 1502
+    },
+    {
+      "path": "scripts/test-recovery-legacy-seed.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b428f90328e64f188f29b14b394d808b3540ff38",
+      "size": 1389
+    },
+    {
+      "path": "scripts/test-recovery-versioned.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a7d7d15c2142361cad5a73bad43366bb7b05830a",
+      "size": 4634
+    },
+    {
+      "path": "scripts/test-session-atomic-audit.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f7a088e1b2a83a89ca201d725bf53dacdd76bdc5",
+      "size": 3251
+    },
+    {
+      "path": "scripts/test-session-inventory.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2a85de0dc3707ef0cd8118c091cec9b60b6527c5",
+      "size": 3787
+    },
+    {
+      "path": "sdk",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "075f15376701ef95cc57e66ca6eac5e0c59365d5"
+    },
+    {
+      "path": "sdk/test",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "634035ec25c97e2de896a0be579f87a4e3ab7dc5"
+    },
+    {
+      "path": "sdk/test/oauth.test.mts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a74e72ec714e914ba1f2b9a6f38811d05d93afe7",
+      "size": 36263
+    },
+    {
+      "path": "sdk/typescript",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c30ca8754e87a37e255b6c65bc2e84aefd794931"
+    },
+    {
+      "path": "sdk/typescript/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "65dc48844ef869a3e0265bd2d1c2ec6059064f63",
+      "size": 2979
+    },
+    {
+      "path": "sdk/typescript/oauth.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4d2a364d4c7c9eb62c2807be4a69662981ec624c",
+      "size": 19424
+    },
+    {
+      "path": "supabase",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9a3f5e09cfc9d3e26dba49306d4fd8ef05be29c3"
+    },
+    {
+      "path": "supabase/account-ownership.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1616254dcfeae06d2e64cb7f50049f9e5b0c4515",
+      "size": 2222
+    },
+    {
+      "path": "supabase/developer-client-registry.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0021788d422be475ca83079d142b991755346495",
+      "size": 3802
+    },
+    {
+      "path": "supabase/migrations",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "039b26a8cac638ef16b8921ce94ac23dbd852d0d"
+    },
+    {
+      "path": "supabase/migrations/20261113000000_identity_core.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "887a96b477b4f8092b80c912a58e497d011f5118",
+      "size": 1635
+    },
+    {
+      "path": "supabase/migrations/20261113000001_identity_organisations.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "59d76037fc6979706efdd9f3a14e3bab22b6169b",
+      "size": 4475
+    },
+    {
+      "path": "supabase/migrations/20261120000001_identity_tenant_billing_lifecycle.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9b7c739cfc5654d60411ace27cd347a9eea01856",
+      "size": 12262
+    },
+    {
+      "path": "supabase/migrations/20261120000002_identity_session_inventory.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "048ecb632f9e2799612ddbeb4d8de78524de39ca",
+      "size": 2143
+    },
+    {
+      "path": "supabase/migrations/20261120000003_identity_developer_client_registry.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0021788d422be475ca83079d142b991755346495",
+      "size": 3802
+    },
+    {
+      "path": "supabase/migrations/20261120000004_identity_service_credentials.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "013084fbc356311fa0ad3e9976ec7ee19b3eaef4",
+      "size": 6510
+    },
+    {
+      "path": "supabase/migrations/20261123000001_identity_mfa_recovery_intake.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8bdc273c021152c896574de963116be95e0fe1ab",
+      "size": 2017
+    },
+    {
+      "path": "supabase/migrations/20261123000002_identity_mfa_recovery_reviews.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ee2bca646625a8cae6e704c06aea6bd3b082fe84",
+      "size": 3172
+    },
+    {
+      "path": "supabase/migrations/20261123000003_identity_mfa_recovery_rejections.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f749fb1a4a0f5254ccdba0d3dff5229eef543a8a",
+      "size": 3670
+    },
+    {
+      "path": "supabase/migrations/20261123000004_identity_mfa_recovery_case_versions.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2800cce971db82edce31bd0b5732f98df45a2ade",
+      "size": 10055
+    },
+    {
+      "path": "supabase/migrations/20261123000005_identity_session_inventory_hardening.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "762fc8db301bfbe44bc79eeeb6b4ea060ad0207b",
+      "size": 2561
+    },
+    {
+      "path": "supabase/migrations/20261123000006_identity_session_revoke_atomic_audit.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2ac9f8568b5bc6a9ec71a91c2b0448d553e562a2",
+      "size": 1306
+    },
+    {
+      "path": "supabase/organisation-invitations.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eec35e5a802db952afb486f89f031a25370231ef",
+      "size": 7516
+    },
+    {
+      "path": "supabase/session-inventory.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a82967b785315ffe523573f16f5a4b15264794a",
+      "size": 2155
+    },
+    {
+      "path": "supabase/stripe-billing.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3207c91c7351b6ff065cea0d49d2c8b8dcdf081b",
+      "size": 2414
+    },
+    {
+      "path": "supabase/stripe-customers.sql",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d29aab8b5565097d6d10b4f892821a7c22637204",
+      "size": 613
+    },
+    {
+      "path": "vendor",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "662b035615aea08679bcd71e479cea712028ec08"
+    },
+    {
+      "path": "vendor/openid-client",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "685bb4f0c59c1940d44d4cdd6142487e24db57a4"
+    },
+    {
+      "path": "vendor/openid-client/LICENSE.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cf18b403479afda48e563f896643373c4cbd829f",
+      "size": 1079
+    },
+    {
+      "path": "vendor/openid-client/package.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "608f53255f37c3aeae33f57b921135ecb9469578",
+      "size": 4249
+    },
+    {
+      "path": "vendor/openid-client/src",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "2dbfed6299071c32f29bca6ff919c10aa4a080a7"
+    },
+    {
+      "path": "vendor/openid-client/src/index.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "df7c5b59f3a7f494ac31ab0270a82a78ed1dedda",
+      "size": 133535
+    },
+    {
+      "path": "vendor/openid-client/src/passport.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7113472d28ed701f1e117ec5d320e2b8805567cd",
+      "size": 22108
+    },
+    {
+      "path": "vendor/openid-client/tsconfig.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f93f6deee0a595d3be67582bdd2951e14e27bbd0",
+      "size": 786
+    },
+    {
+      "path": "vendor/openid-client/tsconfig.passport.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "49d26e9d4194e0bf4fd6c096427b6f8114982beb",
+      "size": 148
+    },
+    {
+      "path": "web",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "300b443d5fb607fe3121e030df045fcb41580632"
+    },
+    {
+      "path": "web/.env.example",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "890b0037db95897c6715e6e661b43c2ed1199bf3",
+      "size": 94
+    },
+    {
+      "path": "web/index.html",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "40f527144e44cc1dd554dee573041eeb3389740b",
+      "size": 263
+    },
+    {
+      "path": "web/package.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "98812593e49f57c94477f02d6c2389213d91e5f4",
+      "size": 604
+    },
+    {
+      "path": "web/src",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c1665d9c7ce5a23c3abc3043d155f786fa61ca6e"
+    },
+    {
+      "path": "web/src/App.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e23c6071b20cf4bed3f7c3b4203ff99305f3788d",
+      "size": 20129
+    },
+    {
+      "path": "web/src/BillingCheckout.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "821692257806112ac69e954cde298e94167ed965",
+      "size": 2528
+    },
+    {
+      "path": "web/src/DeletionReadiness.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7917854a799817973211709b80d372c331cb4a7b",
+      "size": 2576
+    },
+    {
+      "path": "web/src/DeveloperApplications.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2acca8531d005c35b32a0e5b2b71a7a5d0fe75e0",
+      "size": 3554
+    },
+    {
+      "path": "web/src/OrganisationInvitations.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ac857cc5042fd3cd6f97db5f3f8b2ecab1d6473d",
+      "size": 2464
+    },
+    {
+      "path": "web/src/PasswordlessSignIn.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2545253e3b567e0493465eabb5076351b86578c3",
+      "size": 1985
+    },
+    {
+      "path": "web/src/RecoveryReview.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7e42312b62ae4a406f1535daed323217970ddde2",
+      "size": 8319
+    },
+    {
+      "path": "web/src/ServiceCredentials.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fea244544b79c431494ab7fcdf9fa8a90dfa7730",
+      "size": 3478
+    },
+    {
+      "path": "web/src/SessionInventory.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ee512b95ea83f8d39d8d8eadd73219ef59e1e28b",
+      "size": 2983
+    },
+    {
+      "path": "web/src/TeamAdministration.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e6cfac698f30273081b5d9b0006f5c655643c0bf",
+      "size": 3566
+    },
+    {
+      "path": "web/src/account-operation-gate.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dcc0a84515359981d8271975f8f27a61a417f246",
+      "size": 713
+    },
+    {
+      "path": "web/src/api.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5eb81050a4e6a4fc01edefe0b8b6e94253d5a2c1",
+      "size": 2616
+    },
+    {
+      "path": "web/src/main.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d4548331a51dbbbbea73ec8fa6dcf9d2ef1f8480",
+      "size": 219
+    },
+    {
+      "path": "web/src/mfa-factor-selection.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "99ade6e5a871f68027684e42875c777930f157c8",
+      "size": 894
+    },
+    {
+      "path": "web/src/request-generation.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "723b0d95f87837438689015dc2c8c80640ab3d70",
+      "size": 432
+    },
+    {
+      "path": "web/src/session-continuity.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b7a6e4d05305d629c671ba2ed40f337cea2f9ed4",
+      "size": 1234
+    },
+    {
+      "path": "web/src/style.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "789a45ffe35a98fa638efa7a8547e19e2deff144",
+      "size": 1046
+    },
+    {
+      "path": "web/src/supabase.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ba9ef658c7f6042dcd07e939043a9419c2b7d56a",
+      "size": 399
+    },
+    {
+      "path": "web/src/validation.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1068ce525c26c1ae942bb36d238e4b5bb2c00ed7",
+      "size": 505
+    },
+    {
+      "path": "web/src/vendor",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "8d53ffd039c70f0484e3863c8ae38065adb5548e"
+    },
+    {
+      "path": "web/src/vendor/supabase",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "e0eeb18740eff8f1969f71e45d1725d627322119"
+    },
+    {
+      "path": "web/src/vendor/supabase/LICENSE",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "49ea124025275674563eeff03af0f653ca49fdc0",
+      "size": 11338
+    },
+    {
+      "path": "web/src/vendor/supabase/NOTICE.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2f3bb79fd37e5cd636424f6518da29aefc120ca5",
+      "size": 1045
+    },
+    {
+      "path": "web/src/vendor/supabase/login-form.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bee721a71c3468f82d559a2a3780f7dee12552f4",
+      "size": 1880
+    },
+    {
+      "path": "web/src/vendor/supabase/safe-next-path.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f727da65643b969deb7cac96c86c5c0fe12e2aa4",
+      "size": 400
+    },
+    {
+      "path": "web/src/vendor/supabase/sign-up-form.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6ca2ab2fef7eb320c53e5374ff9cc2faf69a59ae",
+      "size": 2966
+    },
+    {
+      "path": "web/src/vendor/supabase/update-password-form.tsx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6e5782bb9d5f3c789cfba80d2abe76124138ec87",
+      "size": 2313
+    },
+    {
+      "path": "web/src/vite-env.d.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "11f02fe2a0061d6e6e1f271b21da95423b448b32",
+      "size": 38
+    },
+    {
+      "path": "web/test",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "2a8703c2621daa4824ad8a41f8f6639f4cce8c1d"
+    },
+    {
+      "path": "web/test/account-lifecycle-concurrency.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7ebb9d275311d6e1bbfd78b5fe11385deb72ad5e",
+      "size": 1642
+    },
+    {
+      "path": "web/test/account-operation-gate.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b43c4a4ecd569e0c2d46cb0fc47690b65bfecf71",
+      "size": 1182
+    },
+    {
+      "path": "web/test/mfa-factor-selection.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "07c47e12ddd8e40babc03f785622e18c43957ad2",
+      "size": 1151
+    },
+    {
+      "path": "web/test/request-generation.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "765bbae82601c99ab6759e3ff0965e4da644aaa6",
+      "size": 1053
+    },
+    {
+      "path": "web/test/safe-next-path.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3b46056b0809e8800941ed91e279b239fa86d809",
+      "size": 569
+    },
+    {
+      "path": "web/test/session-continuity.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "41036d23c8482822c8de6fc78bbe6c71df37e276",
+      "size": 1345
+    },
+    {
+      "path": "web/test/validation.test.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c67b55f498f0fb63e37f3fc7ffb434641a65d01d",
+      "size": 778
+    },
+    {
+      "path": "web/tsconfig.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c473cacd83f5fd59b47c10494c72984e84b738f6",
+      "size": 365
+    },
+    {
+      "path": "web/vite.config.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e8f77bd7fb89893aad13caa4795979bd179de08b",
+      "size": 156
+    }
+  ],
+  "coverage": "Inventory only; content review and test execution tracked separately."
+}
