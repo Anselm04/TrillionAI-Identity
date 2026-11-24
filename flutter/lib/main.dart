@@ -315,9 +315,14 @@ class _IdentityScreenState extends State<IdentityScreen> {
   });
 
   Future<void> exportData() => perform(() async {
+    final ticket = operationTicket!;
     final data = await api.request('GET', '/account/export');
+    // Avoid copying another session's private export after sign-out or disposal.
+    if (!mounted || !accountOperations.isCurrent(ticket)) return;
     await Clipboard.setData(ClipboardData(
       text: const JsonEncoder.withIndent('  ').convert(data)));
+    // Clipboard completion can also outlive the requesting screen/session.
+    if (!mounted || !accountOperations.isCurrent(ticket)) return;
     setState(() => message = 'Data copied. Save the export securely.');
   });
 
