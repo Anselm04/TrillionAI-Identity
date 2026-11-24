@@ -1,0 +1,82 @@
+name: Gate 2 one-time verified artifact transfer
+on:
+  push:
+    branches:
+      - docs/evidence-based-engineering-20261125
+    paths:
+      - .github/workflows/gate2-transfer-once.yml
+permissions: {}
+jobs:
+  transfer:
+    if: github.repository == 'Anselm04/TrillionAI-Identity' && github.ref == 'refs/heads/docs/evidence-based-engineering-20261125' && github.event.before == '9f86bf71cad6956cd75c015c4d846e7d938543f1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify source, archives and exact destination files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_PARENT: 9f86bf71cad6956cd75c015c4d846e7d938543f1
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git diff-tree --no-commit-id --name-only -r HEAD)" = ".github/workflows/gate2-transfer-once.yml"
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess, tempfile, zipfile
+          repo = "Anselm04/TrillionAI-Identity"
+          run = "45510421898"
+          parent = os.environ["EXPECTED_PARENT"]
+          def api(path):
+              return json.loads(subprocess.check_output(["gh","api",path]))
+          result = api(f"repos/{repo}/actions/runs/{run}")
+          assert str(result["id"]) == run and result["head_sha"] == parent and result["conclusion"] == "success"
+          specs = [
+              (14975027759,"gate2-backend-lock","backend/package-lock.json","28fecfad6771bf9e9ddb3c45e8e0bf4e2b3a072d72a562a60d8d7b65da32bec2"),
+              (14975765494,"gate2-web-lock","web/package-lock.json","c0b0ca730c82eeb194f1691a5ed0a0efafdd4563dc66bfc0f3e045093561ab17"),
+              (14975540824,"gate2-flutter-lock","flutter/pubspec.lock","072a991da90fed86f874568df3589b46a744507548de788eeca686b5e0247f28"),
+          ]
+          for artifact_id,name,dest,digest in specs:
+              a = api(f"repos/{repo}/actions/artifacts/{artifact_id}")
+              assert a["name"] == name and not a["expired"] and str(a["workflow_run"]["id"]) == run
+              assert a["digest"] == "sha256:"+digest
+              with tempfile.TemporaryDirectory() as tmp:
+                  archive = pathlib.Path(tmp)/"artifact.zip"
+                  with archive.open("wb") as out:
+                      subprocess.run(["gh","api",f"repos/{repo}/actions/artifacts/{artifact_id}/zip"],stdout=out,check=True)
+                  assert hashlib.sha256(archive.read_bytes()).hexdigest() == digest
+                  with zipfile.ZipFile(archive) as z:
+                      assert z.namelist() == [pathlib.Path(dest).name]
+                      raw = z.read(z.namelist()[0])
+                  path = pathlib.Path(dest)
+                  assert not path.exists()
+                  if dest.endswith(".json"):
+                      lock=json.loads(raw)
+                      manifest=json.loads(path.with_name("package.json").read_bytes())
+                      assert lock["lockfileVersion"] == 3
+                      for key in ("dependencies","devDependencies"):
+                          assert lock["packages"][""].get(key,{}) == manifest.get(key,{})
+                  path.write_bytes(raw)
+                  print(dest, hashlib.sha256(raw).hexdigest())
+          PY
+      - name: Commit exactly three lockfiles and push without force
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch=docs/evidence-based-engineering-20261125
+          test "$(gh api repos/Anselm04/TrillionAI-Identity/git/ref/heads/$branch --jq .object.sha)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- backend/package-lock.json web/package-lock.json flutter/pubspec.lock
+          test "$(git diff --cached --name-only)" = "$(printf '%s\n' backend/package-lock.json flutter/pubspec.lock web/package-lock.json)"
+          git commit -m "build(identity): preserve verified Gate 2 dependency lockfiles from run 88"
+          git config credential.helper '!gh auth git-credential'
+          git push origin "HEAD:refs/heads/$branch"
+          git rev-parse HEAD
