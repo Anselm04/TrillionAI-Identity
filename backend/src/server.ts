@@ -1,3 +1,4 @@
+import { requireAudit, AuditUnavailableError } from "./required-audit.js";
 import { credentialIssueInput, issueServiceKey, digestServiceKey } from "./service-credentials.js";
 import { developerClientInput } from "./developer-client.js";
 import { createCheckoutProvider, parseCheckoutPlans } from "./stripe-checkout.js";
@@ -65,8 +66,10 @@ function wrap(fn: (req: Request, res: Response) => Promise<unknown>) {
 const principal = (req: Request) => (req as AuthRequest).principal!;
 const neutral = { message: "If this address is eligible, an email has been requested." };
 async function audit(action: string, uid?: string) {
-  const { error } = await admin.from("identity_audit_log").insert({ user_id: uid ?? null, action });
-  if (error) console.error("Identity audit write failed:", action);
+  await requireAudit(async () => {
+    const { error } = await admin.from("identity_audit_log").insert({ user_id: uid ?? null, action });
+    return { error };
+  });
 }
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
@@ -320,6 +323,7 @@ app.post("/account/subscriptions/:id/cancel", limiter, guard(), wrap(async (req,
     await audit("subscription_cancelled", uid);
     res.json({ cancelled: true, accessUntil: result.accessUntil });
   } catch (e) {
+    if (e instanceof AuditUnavailableError) throw e;
     res.status(502).json({ error: e instanceof BillingVerificationError
       ? e.code : "cancellation_not_confirmed" });
   }
@@ -722,6 +726,10 @@ app.post("/owner/mfa-recovery/requests/:caseId/reject",limiter,guard("owner"),wr
 }));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  if (_err instanceof AuditUnavailableError) {
+    res.status(503).json({ error: "audit_unavailable", operationOutcome: "unconfirmed" });
+    return;
+  }
   res.status(500).json({ error: "internal_error" });
 });
 if (process.env.NODE_ENV !== "test") initializeStripeBilling(process.env.STRIPE_SECRET_KEY);
