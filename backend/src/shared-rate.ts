@@ -42,3 +42,21 @@ export async function enforceCombinedRate(
  return {allowed:second.allowed,remaining:Math.min(first.remaining,second.remaining),
  reset_epoch:second.allowed?Math.max(first.reset_epoch,second.reset_epoch):second.reset_epoch};
 }
+
+export type AccountRateScope="login"|"email-delivery";
+/** Address is validated by the same schema used for provider requests.
+ * Separate namespaces prevent email delivery from exhausting login quota.
+ * Login is source-bound: an unrelated network cannot exhaust a global login bucket.
+ * Delivery retains a target-wide anti-flood bucket; suppression is temporary.
+ * These are abuse buckets, not authenticated identities. */
+export function accountRateKey(secret:string,scope:AccountRateScope,email:string,source?:string):string {
+ const normalized=email.trim().toLowerCase();
+ if(secret.length<32||!["login","email-delivery"].includes(scope)||!normalized||normalized.length>254)throw Error("invalid_account_rate_identity");
+ if(scope==="login"&&(!source||source.length>128))throw Error("invalid_login_source");
+ return createHmac("sha256",secret).update(JSON.stringify(["identity:account:v2",scope,normalized,scope==="login"?source:null])).digest("hex");
+}
+export function accountRateOutcome(scope:AccountRateScope,decision:RateDecision|null):"allow"|"unavailable"|"neutral"|"limited"{
+ if(!decision)return "unavailable";
+ if(decision.allowed)return "allow";
+ return scope==="email-delivery"?"neutral":"limited";
+}

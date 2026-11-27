@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {rateKey,parseRateDecision,createSharedRateCheck,enforceCombinedRate} from "../src/shared-rate.ts";
+import {rateKey,parseRateDecision,createSharedRateCheck,enforceCombinedRate,accountRateKey,accountRateOutcome} from "../src/shared-rate.ts";
 const secret="a".repeat(32),allow={allowed:true,remaining:19,reset_epoch:900};
 test("stable pseudonymous key across replicas and separation of addresses",()=>{
  assert.equal(rateKey(secret,"192.0.2.1"),rateKey(secret,"192.0.2.1"));
@@ -42,4 +42,29 @@ test("both counters must allow, and rolling denial remains authoritative",async(
 test("aborted legacy completion never starts another RPC",async()=>{
  const controller=new AbortController();
  assert.equal(await enforceCombinedRate("key",controller.signal,async()=>{controller.abort();return allow;},async()=>assert.fail("rolling called after abort")),null);
+});
+
+test("account abuse keys are stable across casing and separate from IP and delivery scopes",()=>{
+ const a=accountRateKey(secret,"login","Example@EXAMPLE.COM","192.0.2.1");
+ assert.equal(a,accountRateKey(secret,"login"," example@example.com ","192.0.2.1"));
+ assert.notEqual(a,accountRateKey(secret,"email-delivery","example@example.com"));
+ assert.notEqual(a,rateKey(secret,"example@example.com"));
+ assert.notEqual(a,accountRateKey(secret,"login","other@example.com","192.0.2.1"));
+ assert.throws(()=>accountRateKey("short","login","example@example.com","192.0.2.1"));
+});
+test("delivery suppression is neutral and login limits do not disclose account existence",()=>{
+ const deny={allowed:false,remaining:0,reset_epoch:900};
+ assert.equal(accountRateOutcome("email-delivery",deny),"neutral");
+ assert.equal(accountRateOutcome("login",deny),"limited");
+ for(const scope of ["login","email-delivery"]){
+ assert.equal(accountRateOutcome(scope,null),"unavailable");
+ assert.equal(accountRateOutcome(scope,allow),"allow");
+ }
+});
+
+test("unrelated login sources cannot exhaust the same target login bucket",()=>{
+ const first=accountRateKey(secret,"login","example@example.com","192.0.2.1");
+ assert.notEqual(first,accountRateKey(secret,"login","example@example.com","192.0.2.2"));
+ assert.throws(()=>accountRateKey(secret,"login","example@example.com"));
+ assert.equal(accountRateKey(secret,"email-delivery","example@example.com","192.0.2.1"),accountRateKey(secret,"email-delivery","example@example.com","192.0.2.2"));
 });
