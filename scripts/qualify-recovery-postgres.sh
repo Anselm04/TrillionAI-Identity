@@ -20,3 +20,6 @@ psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261113000001_identity_organi
 psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261120000001_identity_tenant_billing_lifecycle.sql
 psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261128000001_identity_invitation_audit.sql
 psql -X -v ON_ERROR_STOP=1 -f scripts/test-invitation-atomic-audit.sql
+
+# F-08: reproduce installation-order differences in separate disposable databases.
+bash scripts/qualify-stripe-fk-histories.sh
