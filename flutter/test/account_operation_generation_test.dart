@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trillionai_identity/account_operation_generation.dart';
 
@@ -20,6 +22,47 @@ void main() {
     expect(gate.finish(old), isFalse);
     expect(gate.isCurrent(next), isTrue);
     expect(gate.finish(next), isTrue);
+  });
+
+  test('export completion is invalid after account transition at either await', () async {
+    final gate = AccountOperationGeneration();
+
+    // First await: account data arrives after sign-out. The clipboard must not
+    // be written and the UI must not be updated by the old operation.
+    final response = Completer<String>();
+    final first = gate.begin()!;
+    var clipboardWrites = 0;
+    var messages = 0;
+    final pending = () async {
+      final value = await response.future;
+      if (!gate.isCurrent(first)) return;
+      clipboardWrites++;
+      await Future<void>.value();
+      if (!gate.isCurrent(first)) return;
+      messages += value.length;
+    }();
+    gate.invalidate();
+    response.complete('private export');
+    await pending;
+    expect(clipboardWrites, 0);
+    expect(messages, 0);
+
+    // Second await: copy started while valid; sign-out happens before
+    // the platform clipboard write returns. The UI must stay unchanged.
+    final clipboard = Completer<void>();
+    final second = gate.begin()!;
+    final pendingCopy = () async {
+      if (!gate.isCurrent(second)) return;
+      clipboardWrites++;
+      await clipboard.future;
+      if (!gate.isCurrent(second)) return;
+      messages++;
+    }();
+    expect(clipboardWrites, 1);
+    gate.invalidate();
+    clipboard.complete();
+    await pendingCopy;
+    expect(messages, 0);
   });
 
   test('rejects stale, future and invalid operation tickets', () {

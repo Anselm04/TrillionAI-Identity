@@ -315,9 +315,14 @@ class _IdentityScreenState extends State<IdentityScreen> {
   });
 
   Future<void> exportData() => perform(() async {
+    final ticket = operationTicket!;
     final data = await api.request('GET', '/account/export');
+    // Avoid copying another session's private export after sign-out or disposal.
+    if (!mounted || !accountOperations.isCurrent(ticket)) return;
     await Clipboard.setData(ClipboardData(
       text: const JsonEncoder.withIndent('  ').convert(data)));
+    // Clipboard completion can also outlive the requesting screen/session.
+    if (!mounted || !accountOperations.isCurrent(ticket)) return;
     setState(() => message = 'Data copied. Save the export securely.');
   });
 
@@ -368,15 +373,19 @@ class _IdentityScreenState extends State<IdentityScreen> {
   );
 
   Future<void> requestPasswordless() => perform(() async {
+    final ticket = operationTicket!;
     final address=email.text.trim().toLowerCase();
     if(!address.contains('@'))throw StateError('Enter a valid email.');
+    if (supabase.auth.currentSession != null) throw StateError('Sign out first.');
     try {
       await api.publicPost('/auth/passwordless/email', {'email': address});
     } on IdentityRequestException catch (e) {
       if (e.status == 429) throw StateError('Too many requests. Try again later.');
       throw StateError('Email delivery unavailable. Try again later.');
     }
-    if(mounted)setState((){passwordlessEmail=address;passwordlessCode.clear();message='If eligible, check your email for a sign-in link or code.';});
+    if (!mounted || !accountOperations.isCurrent(ticket) ||
+        supabase.auth.currentSession != null || email.text.trim().toLowerCase() != address) return;
+    setState((){passwordlessEmail=address;passwordlessCode.clear();message='If eligible, check your email for a sign-in code.';});
   });
   Future<void> verifyPasswordless() => perform(() async {
     final address=passwordlessEmail;

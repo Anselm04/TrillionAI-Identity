@@ -42,7 +42,7 @@ class IdentityApi {
     req.headers['Content-Type'] = 'application/json';
     req.body = jsonEncode(body);
     final response = await http.Response.fromStream(
-      await req.send().timeout(const Duration(seconds: 20)));
+      await req.send().timeout(const Duration(seconds: 20))).timeout(const Duration(seconds: 20));
     Map<String, dynamic> data = {};
     try {
       final decoded = jsonDecode(response.body);
@@ -66,41 +66,11 @@ class IdentityApi {
     final token = started?.accessToken;
     if (token == null) throw StateError('Please sign in.');
     final base = Uri.parse(apiUrl);
-    if (base.scheme != 'https' &&
-        !(base.scheme == 'http' &&
-          const ['localhost', '127.0.0.1', '10.0.2.2'].contains(base.host))) {
+    if (base.scheme != 'https' && !(base.scheme == 'http' && const ['localhost','127.0.0.1','10.0.2.2'].contains(base.host))) {
       throw StateError('Identity API requires HTTPS outside local development.');
     }
-    if (base.userInfo.isNotEmpty || base.hasQuery || base.hasFragment ||
-        base.host.isEmpty || (base.path.isNotEmpty && base.path != '/')) {
-      throw StateError('Invalid Identity API base URL.');
-    }
-    // Treat the API path as a relative route, never as a second URL or
-    // a path that can be normalised outside the intended endpoint.
-    if (!path.startsWith('/') || path.startsWith('//') ||
-        path.contains('?') || path.contains('#') || path.contains('\\') ||
-        path.runes.any((code) => code < 0x20 || code == 0x7f)) {
-      throw ArgumentError('Invalid API path');
-    }
-    for (final segment in path.substring(1).split('/')) {
-      String decoded;
-      try {
-        decoded = Uri.decodeComponent(segment);
-      } on FormatException {
-        throw ArgumentError('Invalid API path encoding');
-      }
-      if (decoded == '.' || decoded == '..' ||
-          decoded.contains('/') || decoded.contains('\\') ||
-          decoded.runes.any((code) => code < 0x20 || code == 0x7f)) {
-        throw ArgumentError('Unsafe API path segment');
-      }
-    }
-    final target = base.replace(path: path, query: null, fragment: null);
-    if (target.scheme != base.scheme || target.host != base.host ||
-        target.port != base.port) {
-      throw StateError('Cross-origin Identity API request rejected.');
-    }
-    final req = http.Request(method, target);
+    if (!path.startsWith('/') || path.startsWith('//')) throw ArgumentError('Invalid API path');
+    final req = http.Request(method, Uri.parse('$apiUrl$path'));
     req.followRedirects = false;
     req.headers.addAll({
       'Authorization': 'Bearer $token',
@@ -109,29 +79,15 @@ class IdentityApi {
     if (body != null) req.body = jsonEncode(body);
     final response = await http.Response.fromStream(
         await req.send().timeout(const Duration(seconds: 20)));
-    // Never parse or expose a response from a superseded authentication session.
-    // A logout or account switch can occur while the HTTP request is in flight.
+    final decoded = response.statusCode == 204 && response.body.trim().isEmpty ? <String,dynamic>{} : jsonDecode(response.body);
+    final data = decoded is Map<String, dynamic>
+        ? decoded : <String, dynamic>{};
+    // Discard late response data after sign-out or a different login session.
+    // Supabase Auth remains solely responsible for refreshing credentials.
     final latest = client.auth.currentSession;
     if (!sameIdentitySession(token, started?.user.id,
         latest?.accessToken, latest?.user.id)) {
       throw StateError('Session changed. Please retry.');
-    }
-    Map<String, dynamic> data;
-    try {
-      if (response.statusCode == 204 && response.body.trim().isEmpty) {
-        data = <String, dynamic>{};
-      } else {
-        final decoded = jsonDecode(response.body);
-        if (decoded is! Map<String, dynamic>) {
-          throw const FormatException('Expected JSON object');
-        }
-        data = decoded;
-      }
-    } on FormatException {
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        throw StateError('Invalid identity API response.');
-      }
-      data = <String, dynamic>{};
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw IdentityRequestException(response.statusCode,

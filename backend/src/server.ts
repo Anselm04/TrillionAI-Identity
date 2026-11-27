@@ -1,6 +1,7 @@
+import { passwordlessRequestOptions } from "./passwordless.js";
+import { requireAudit, AuditUnavailableError } from "./required-audit.js";
 import { credentialIssueInput, issueServiceKey, digestServiceKey } from "./service-credentials.js";
 import { developerClientInput } from "./developer-client.js";
-import { passwordlessRequestOptions, passwordlessDeliveryStatus } from "./passwordless.js";
 import { createCheckoutProvider, parseCheckoutPlans } from "./stripe-checkout.js";
 import { initializeAccountLifecycle } from "./account-lifecycle.js";
 import { verifyStripeEvent, subscriptionEvent } from "./stripe-webhook.js";
@@ -66,8 +67,10 @@ function wrap(fn: (req: Request, res: Response) => Promise<unknown>) {
 const principal = (req: Request) => (req as AuthRequest).principal!;
 const neutral = { message: "If this address is eligible, an email has been requested." };
 async function audit(action: string, uid?: string) {
-  const { error } = await admin.from("identity_audit_log").insert({ user_id: uid ?? null, action });
-  if (error) console.error("Identity audit write failed:", action);
+  await requireAudit(async () => {
+    const { error } = await admin.from("identity_audit_log").insert({ user_id: uid ?? null, action });
+    return { error };
+  });
 }
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
@@ -94,18 +97,14 @@ app.post("/auth/resend", limiter, wrap(async (req, res) => {
   }
   res.status(202).json(neutral);
 }));
-// Existing verified accounts only. Supabase Auth owns link issuance, expiry and redemption.
-// The endpoint does not issue credentials or create users; callback handling remains provider-managed.
+// Existing accounts only; delivery outcomes are deliberately indistinguishable.
 app.post("/auth/passwordless/email", limiter, wrap(async (req, res) => {
   const parsed = z.object({ email }).strict().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Valid email required" }); return; }
-  const { error } = await publicAuthClient().auth.signInWithOtp({
-    email: parsed.data.email,
-    options: passwordlessRequestOptions(new URL("/verified", config.APP_URL).href),
-  });
-  const status = passwordlessDeliveryStatus(error);
-  if (status === 429) { res.status(429).json({ error: "too_many_requests" }); return; }
-  if (status === 503) { res.status(503).json({ error: "passwordless_delivery_unavailable" }); return; }
+  const options = passwordlessRequestOptions(new URL("/verified", config.APP_URL).href);
+  try {
+    await publicAuthClient().auth.signInWithOtp({ email: parsed.data.email, options });
+  } catch { /* Do not expose account-dependent delivery errors. */ }
   res.status(202).json(neutral);
 }));
 app.post("/auth/forgot", limiter, wrap(async (req, res) => {
@@ -335,6 +334,7 @@ app.post("/account/subscriptions/:id/cancel", limiter, guard(), wrap(async (req,
     await audit("subscription_cancelled", uid);
     res.json({ cancelled: true, accessUntil: result.accessUntil });
   } catch (e) {
+    if (e instanceof AuditUnavailableError) throw e;
     res.status(502).json({ error: e instanceof BillingVerificationError
       ? e.code : "cancellation_not_confirmed" });
   }
@@ -737,6 +737,10 @@ app.post("/owner/mfa-recovery/requests/:caseId/reject",limiter,guard("owner"),wr
 }));
 app.get("/owner/ping", guard("owner"), (_req, res) => res.json({ ok: true }));
 app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  if (_err instanceof AuditUnavailableError) {
+    res.status(503).json({ error: "audit_unavailable", operationOutcome: "unconfirmed" });
+    return;
+  }
   res.status(500).json({ error: "internal_error" });
 });
 if (process.env.NODE_ENV !== "test") initializeStripeBilling(process.env.STRIPE_SECRET_KEY);
