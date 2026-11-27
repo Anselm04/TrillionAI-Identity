@@ -21,6 +21,11 @@ for history in consolidated standalone_first consolidated_first; do
  expected=c
  if [[ "$history" == standalone_first ]]; then expected=r; fi
  psql -X -v ON_ERROR_STOP=1 -v expected_fk="$expected" -f scripts/test-stripe-fk-history.sql
+ # Keep historical reproduction, then qualify convergence and replay.
+ psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261128000002_identity_stripe_fk_consistency.sql
+ psql -X -v ON_ERROR_STOP=1 -v expected_fk=c -f scripts/test-stripe-fk-history.sql
+ psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261128000002_identity_stripe_fk_consistency.sql
+ psql -X -v ON_ERROR_STOP=1 -v expected_fk=c -f scripts/test-stripe-fk-history.sql
  )
  dropdb "$db"
  trap - EXIT
