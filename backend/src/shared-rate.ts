@@ -24,3 +24,21 @@ export function createSharedRateCheck(hit:(key:string,signal:AbortSignal)=>Promi
   return Promise.race([timeout,work]);
  };
 }
+
+/** Retain the legacy shared quota while introducing the rolling quota.
+ * Both decisions must explicitly allow the request; no retry on ambiguous writes.
+ * The caller supplies one deadline and one concurrency slot for the pair. */
+export async function enforceCombinedRate(
+ key:string,signal:AbortSignal,
+ fixed:(key:string,signal:AbortSignal)=>Promise<unknown>,
+ rolling:(key:string,signal:AbortSignal)=>Promise<unknown>
+):Promise<RateDecision|null>{
+ if(signal.aborted)return null;
+ const first=parseRateDecision(await fixed(key,signal));
+ if(signal.aborted||!first)return null;
+ if(!first.allowed)return first;
+ const second=parseRateDecision(await rolling(key,signal));
+ if(signal.aborted||!second)return null;
+ return {allowed:second.allowed,remaining:Math.min(first.remaining,second.remaining),
+ reset_epoch:second.allowed?Math.max(first.reset_epoch,second.reset_epoch):second.reset_epoch};
+}

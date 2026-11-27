@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {rateKey,parseRateDecision,createSharedRateCheck} from "../src/shared-rate.ts";
+import {rateKey,parseRateDecision,createSharedRateCheck,enforceCombinedRate} from "../src/shared-rate.ts";
 const secret="a".repeat(32),allow={allowed:true,remaining:19,reset_epoch:900};
 test("stable pseudonymous key across replicas and separation of addresses",()=>{
  assert.equal(rateKey(secret,"192.0.2.1"),rateKey(secret,"192.0.2.1"));
@@ -25,4 +25,21 @@ test("bounded pending calls and late completion fail closed",async()=>{
  assert.equal(await check("other"),null);assert.equal(calls,1);
  release(allow);await new Promise(r=>setImmediate(r));
  const next=check("key");await Promise.resolve();release(allow);assert.deepEqual(await next,allow);
+});
+
+test("legacy denial prevents rolling call and preserves active restrictions",async()=>{
+ const denied={allowed:false,remaining:0,reset_epoch:1800};
+ const result=await enforceCombinedRate("key",new AbortController().signal,async()=>denied,async()=>{assert.fail("rolling called after legacy denial");});
+ assert.deepEqual(result,denied);
+});
+test("both counters must allow, and rolling denial remains authoritative",async()=>{
+ const deny={allowed:false,remaining:0,reset_epoch:1200};
+ const signal=new AbortController().signal;
+ assert.deepEqual(await enforceCombinedRate("key",signal,async()=>allow,async()=>deny),deny);
+ assert.deepEqual(await enforceCombinedRate("key",signal,async()=>allow,async()=>({...allow,remaining:4,reset_epoch:1200})),{allowed:true,remaining:4,reset_epoch:1200});
+ assert.equal(await enforceCombinedRate("key",signal,async()=>allow,async()=>null),null);
+});
+test("aborted legacy completion never starts another RPC",async()=>{
+ const controller=new AbortController();
+ assert.equal(await enforceCombinedRate("key",controller.signal,async()=>{controller.abort();return allow;},async()=>assert.fail("rolling called after abort")),null);
 });

@@ -12,7 +12,7 @@ import express, { type Request, type Response, type NextFunction } from "express
 import helmet from "helmet";
 import cors from "cors";
 import { rateLimit, ipKeyGenerator } from "express-rate-limit";
-import { createSharedRateCheck, rateKey } from "./shared-rate.js";
+import { createSharedRateCheck, rateKey, enforceCombinedRate } from "./shared-rate.js";
 import { z } from "zod";
 import { config } from "./config.js";
 import { admin, publicAuthClient } from "./supabase.js";
@@ -61,10 +61,15 @@ app.post("/webhooks/stripe",express.raw({type:"application/json",limit:"256kb"})
 app.use(express.json({ limit: "16kb" }));
 app.use((_, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
 const localLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false });
-const sharedRateCheck=createSharedRateCheck(async(key,signal)=>{
- const {data,error}=await admin.rpc("identity_rate_hit",{p_key:key}).abortSignal(signal);
- return error?null:data;
-});
+const sharedRateCheck=createSharedRateCheck((key,signal)=>enforceCombinedRate(key,signal,
+ async(key,signal)=>{
+  const {data,error}=await admin.rpc("identity_rate_hit",{p_key:key}).abortSignal(signal);
+  return error?null:data;
+ },
+ async(key,signal)=>{
+  const {data,error}=await admin.rpc("identity_rate_rolling_hit",{p_key:key}).abortSignal(signal);
+  return error?null:data;
+ }));
 function distributedLimiter(req:Request,res:Response,next:NextFunction){
  if(config.IDENTITY_RATE_MODE!=="shared"){next();return;}
  void (async()=>{
