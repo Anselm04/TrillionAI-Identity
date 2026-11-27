@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {rateKey,parseRateDecision,createSharedRateCheck,enforceCombinedRate,accountRateKey,accountRateOutcome} from "../src/shared-rate.ts";
+import {rateKey,parseRateDecision,createSharedRateCheck,enforceCombinedRate,accountRateKey,accountRateOutcome,serviceRateKey,verifiedServiceQuota} from "../src/shared-rate.ts";
 const secret="a".repeat(32),allow={allowed:true,remaining:19,reset_epoch:900};
 test("stable pseudonymous key across replicas and separation of addresses",()=>{
  assert.equal(rateKey(secret,"192.0.2.1"),rateKey(secret,"192.0.2.1"));
@@ -67,4 +67,22 @@ test("unrelated login sources cannot exhaust the same target login bucket",()=>{
  assert.notEqual(first,accountRateKey(secret,"login","example@example.com","192.0.2.2"));
  assert.throws(()=>accountRateKey(secret,"login","example@example.com"));
  assert.equal(accountRateKey(secret,"email-delivery","example@example.com","192.0.2.1"),accountRateKey(secret,"email-delivery","example@example.com","192.0.2.2"));
+});
+
+test("verified credential quotas are stable and independent of other identities",()=>{
+ const a="12345678-1234-1234-1234-123456789abc",b="12345678-1234-1234-1234-123456789abd";
+ assert.equal(serviceRateKey(secret,a),serviceRateKey(secret,a.toUpperCase()));
+ assert.notEqual(serviceRateKey(secret,a),serviceRateKey(secret,b));
+ assert.notEqual(serviceRateKey(secret,a),rateKey(secret,a));
+ assert.throws(()=>serviceRateKey(secret,"tai_sk_"+"a".repeat(64)));
+});
+test("malformed credential authority response never consumes a service quota",async()=>{
+ for(const data of [null,{}, {credential_id:"bad"}]){
+ assert.equal(await verifiedServiceQuota(secret,data,async()=>assert.fail("unexpected quota call")),null);
+ }
+ const data={credential_id:"12345678-1234-1234-1234-123456789abc"};
+ assert.deepEqual(await verifiedServiceQuota(secret,data,async key=>{assert.equal(key,serviceRateKey(secret,data.credential_id));return allow;}),allow);
+ assert.equal(await verifiedServiceQuota(secret,data,async()=>{throw Error("store unavailable");}),null);
+ const deny={allowed:false,remaining:0,reset_epoch:900};
+ assert.deepEqual(await verifiedServiceQuota(secret,data,async()=>deny),deny);
 });

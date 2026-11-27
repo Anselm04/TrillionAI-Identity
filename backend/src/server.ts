@@ -12,7 +12,7 @@ import express, { type Request, type Response, type NextFunction } from "express
 import helmet from "helmet";
 import cors from "cors";
 import { rateLimit, ipKeyGenerator } from "express-rate-limit";
-import { createSharedRateCheck, rateKey, enforceCombinedRate, accountRateKey, accountRateOutcome, type AccountRateScope } from "./shared-rate.js";
+import { createSharedRateCheck, rateKey, enforceCombinedRate, accountRateKey, accountRateOutcome, type AccountRateScope, verifiedServiceQuota } from "./shared-rate.js";
 import { z } from "zod";
 import { config } from "./config.js";
 import { admin, publicAuthClient } from "./supabase.js";
@@ -652,6 +652,14 @@ app.post("/v1/service-credentials/introspect",limiter,wrap(async(req,res)=>{
  const {data,error}=await admin.rpc("identity_introspect_service_credential",{p_digest:digestServiceKey(match[1]!)});
  if(error){res.status(503).json({error:"credential_validation_unavailable"});return;}
  if(!data){res.status(401).json({error:"invalid_service_credential"});return;}
+ if(config.IDENTITY_RATE_MODE==="shared"){
+  const decision=await verifiedServiceQuota(config.IDENTITY_RATE_SECRET??"",data,sharedRateCheck);
+  if(!decision){res.status(503).json({error:"rate_limit_unavailable"});return;}
+  if(!decision.allowed){
+   res.setHeader("Retry-After",String(Math.max(1,Math.min(900,decision.reset_epoch-Math.floor(Date.now()/1000)))));
+   res.status(429).json({error:"too_many_requests"});return;
+  }
+ }
  res.json({active:true,...data});
 }));
 // Owner-only case inventory. The existing owner guard enforces verified email,
