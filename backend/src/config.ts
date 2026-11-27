@@ -7,6 +7,8 @@ export const config = z.object({
   APP_URL: z.string().url(),
   ALLOWED_ORIGINS: z.string().optional(),
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(3).default(0),
+  IDENTITY_RATE_MODE: z.enum(["local","shared"]).default("local"),
+  IDENTITY_RATE_SECRET: z.string().min(32).optional(),
   PORT: z.coerce.number().int().positive().max(65535).default(3000),
 }).superRefine((settings, ctx) => {
   if (settings.SUPABASE_PUBLISHABLE_KEY === settings.SUPABASE_SERVICE_ROLE_KEY) {
@@ -14,7 +16,9 @@ export const config = z.object({
       message: "Never use a public API key as the privileged service-role key",
       path: ["SUPABASE_SERVICE_ROLE_KEY"] });
   }
+  if(settings.IDENTITY_RATE_MODE==="shared"&&!settings.IDENTITY_RATE_SECRET)ctx.addIssue({code:z.ZodIssueCode.custom,path:["IDENTITY_RATE_SECRET"],message:"Shared rate limiting requires a common server-only secret"});
   if (process.env.NODE_ENV === "production") {
+    if(settings.IDENTITY_RATE_MODE!=="shared")ctx.addIssue({code:z.ZodIssueCode.custom,path:["IDENTITY_RATE_MODE"],message:"Production requires shared rate limiting"});
     const urls = [settings.APP_URL,
       ...(settings.ALLOWED_ORIGINS ?? "").split(",").map(s => s.trim()).filter(Boolean)];
     for (const origin of urls) {
