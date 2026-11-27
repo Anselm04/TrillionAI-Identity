@@ -143,3 +143,6 @@ Baseline 6d9ec55ed0678979e0c9a31bb3b891bddca5b30e; main CI 46065832790 passed. E
 
 ## Gate 4 concurrent shared counter qualification — 28 November 2026
 Baseline dcfbbf434b0125e80c4b3469f2b6c1e1a565c1c8; PR44 CI 46066250296 passed. Reuse existing counter RPC and disposable PostgreSQL harness; 40 independent connections under service_role contend for one synthetic digest, assert exactly 20 allowed and 20 denied and saturation at 21. Fixed-window boundary avoided for this assertion; boundary burst protection is a separate task. No runtime changes, upstream code copied, or live database access. CI pending.
+
+## Gate 4 shared middleware increment — 28 November 2026
+Baseline 8507b195485c3cc920858b54c4931cb8a27813fa; PR45 CI 46066536618 passed. Reuse qualified RPC and existing express-rate-limit IPv6 key normalization and local limiter. Shared mode mandatory in production; same secret across replicas, local-only development retained. HMAC pseudonymous IP bucket, strict RPC validation, fail closed 503, bounded 32 in-flight calls per process and 2s timeout; retain slot until actual settlement. No provider calls in tests. Boundary bursts, cross-process HTTP qualification, cleanup scheduling and per-account abuse controls remain pending. No deployment.
