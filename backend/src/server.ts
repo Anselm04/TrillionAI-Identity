@@ -1,3 +1,4 @@
+import { passwordlessRequestOptions } from "./passwordless.js";
 import { requireAudit, AuditUnavailableError } from "./required-audit.js";
 import { credentialIssueInput, issueServiceKey, digestServiceKey } from "./service-credentials.js";
 import { developerClientInput } from "./developer-client.js";
@@ -94,6 +95,16 @@ app.post("/auth/resend", limiter, wrap(async (req, res) => {
     }
     res.status(error.status === 429 ? 429 : 503).json({ error: "verification_delivery_unavailable" }); return;
   }
+  res.status(202).json(neutral);
+}));
+// Existing accounts only; delivery outcomes are deliberately indistinguishable.
+app.post("/auth/passwordless/email", limiter, wrap(async (req, res) => {
+  const parsed = z.object({ email }).strict().safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Valid email required" }); return; }
+  const options = passwordlessRequestOptions(new URL("/verified", config.APP_URL).href);
+  try {
+    await publicAuthClient().auth.signInWithOtp({ email: parsed.data.email, options });
+  } catch { /* Do not expose account-dependent delivery errors. */ }
   res.status(202).json(neutral);
 }));
 app.post("/auth/forgot", limiter, wrap(async (req, res) => {
