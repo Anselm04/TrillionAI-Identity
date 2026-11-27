@@ -158,3 +158,6 @@ Baseline 82384619dc6e4c2dda281d308851dcece48139c0; main CI 46069663127 passed. R
 
 ### PR49 pre-merge correction
 Initial CI 46069841354 passed, but review found target-wide login denial risk. Bind login bucket to normalized source and target; retain existing global IP protection. Email delivery remains target-wide for flood suppression, separate from login, with temporary neutral suppression. Same-network denial, distributed guessing, provider-direct paths and delivery starvation remain residual risks. No claim of full credential-stuffing protection. Requalify before merge.
+
+## Gate 4 verified service quota increment
+Baseline 844a95b59d1d7d014bb4f0106bf2a99c3df9ab47; main CI 46070273067 passed. Existing identity_introspect_service_credential returns credential_id only on active credential and confidential client validation. Add independent credential-ID HMAC bucket only after validation; retain all existing IP restrictions, reuse qualified combined counter (20/15min). No raw service secrets in quota identifiers. This is an additive introspection security control, not higher throughput or workload quota separation; shared IP cap remains and must be addressed before legitimate high-volume use. No new scope or live actions. CI pending.

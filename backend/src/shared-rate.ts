@@ -60,3 +60,14 @@ export function accountRateOutcome(scope:AccountRateScope,decision:RateDecision|
  if(decision.allowed)return "allow";
  return scope==="email-delivery"?"neutral":"limited";
 }
+
+/** Only use identifiers returned by the authoritative credential validator. */
+export function serviceRateKey(secret:string,credentialId:unknown):string {
+ if(secret.length<32||typeof credentialId!=="string"||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(credentialId))throw Error("invalid_service_rate_identity");
+ return createHmac("sha256",secret).update(JSON.stringify(["identity:service:introspection:v1",credentialId.toLowerCase()])).digest("hex");
+}
+export async function verifiedServiceQuota(secret:string,data:unknown,check:(key:string)=>Promise<RateDecision|null>):Promise<RateDecision|null>{
+ if(!data||typeof data!=="object")return null;
+ try{return parseRateDecision(await check(serviceRateKey(secret,(data as Record<string,unknown>).credential_id)));}
+ catch{return null;}
+}
