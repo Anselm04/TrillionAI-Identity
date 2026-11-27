@@ -23,3 +23,7 @@ psql -X -v ON_ERROR_STOP=1 -f scripts/test-invitation-atomic-audit.sql
 
 # F-08: reproduce installation-order differences in separate disposable databases.
 bash scripts/qualify-stripe-fk-histories.sh
+
+# Gate 4 shared counter primitive (disposable database only).
+psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261128000003_identity_rate_windows.sql
+psql -X -v ON_ERROR_STOP=1 -f scripts/test-rate-windows.sql
