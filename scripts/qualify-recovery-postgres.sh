@@ -29,3 +29,7 @@ psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261128000003_identity_rate_w
 psql -X -v ON_ERROR_STOP=1 -f scripts/test-rate-windows.sql
 
 bash scripts/qualify-rate-concurrency.sh
+
+psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261128000004_identity_rate_rolling.sql
+psql -X -v ON_ERROR_STOP=1 -f scripts/test-rate-rolling.sql
+bash scripts/qualify-rate-rolling-concurrency.sh
