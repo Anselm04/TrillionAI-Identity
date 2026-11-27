@@ -89,10 +89,10 @@ function wrap(fn: (req: Request, res: Response) => Promise<unknown>) {
 }
 const principal = (req: Request) => (req as AuthRequest).principal!;
 const neutral = { message: "If this address is eligible, an email has been requested." };
-async function permitAccountAttempt(res:Response,scope:AccountRateScope,address:string):Promise<boolean>{
+async function permitAccountAttempt(req:Request,res:Response,scope:AccountRateScope,address:string):Promise<boolean>{
  if(config.IDENTITY_RATE_MODE!=="shared")return true;
  let decision=null;
- try{decision=await sharedRateCheck(accountRateKey(config.IDENTITY_RATE_SECRET??"",scope,address));}catch{/* fail closed */}
+ try{decision=await sharedRateCheck(accountRateKey(config.IDENTITY_RATE_SECRET??"",scope,address,scope==="login"?ipKeyGenerator(req.ip??""):undefined));}catch{/* fail closed */}
  const outcome=accountRateOutcome(scope,decision);
  if(outcome==="allow")return true;
  if(outcome==="neutral"){res.status(202).json(neutral);return false;}
@@ -122,7 +122,7 @@ app.get("/ready",wrap(async(_req,res)=>{
 app.post("/auth/register", limiter, wrap(async (req, res) => {
   const v = z.object({ email, password }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Use a valid email and password of at least 12 characters." }); return; }
-  if(!await permitAccountAttempt(res,"email-delivery",v.data.email))return;
+  if(!await permitAccountAttempt(req,res,"email-delivery",v.data.email))return;
   const { error } = await publicAuthClient().auth.signUp({ ...v.data, options: { emailRedirectTo: new URL("/verified", config.APP_URL).href } });
   if (error) {
     res.status(error.status === 429 ? 429 : 503).json({
@@ -134,7 +134,7 @@ app.post("/auth/register", limiter, wrap(async (req, res) => {
 app.post("/auth/resend", limiter, wrap(async (req, res) => {
   const v = z.object({ email }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Valid email required" }); return; }
-  if(!await permitAccountAttempt(res,"email-delivery",v.data.email))return;
+  if(!await permitAccountAttempt(req,res,"email-delivery",v.data.email))return;
   const { error } = await publicAuthClient().auth.resend({ email: v.data.email, type: "signup", options: { emailRedirectTo: new URL("/verified", config.APP_URL).href } });
   if (error) {
     if (["user_not_found", "email_not_found", "email_already_confirmed"].includes(error.code ?? "")) {
@@ -148,7 +148,7 @@ app.post("/auth/resend", limiter, wrap(async (req, res) => {
 app.post("/auth/passwordless/email", limiter, wrap(async (req, res) => {
   const parsed = z.object({ email }).strict().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Valid email required" }); return; }
-  if(!await permitAccountAttempt(res,"email-delivery",parsed.data.email))return;
+  if(!await permitAccountAttempt(req,res,"email-delivery",parsed.data.email))return;
   const options = passwordlessRequestOptions(new URL("/verified", config.APP_URL).href);
   try {
     await publicAuthClient().auth.signInWithOtp({ email: parsed.data.email, options });
@@ -158,7 +158,7 @@ app.post("/auth/passwordless/email", limiter, wrap(async (req, res) => {
 app.post("/auth/forgot", limiter, wrap(async (req, res) => {
   const v = z.object({ email }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Valid email required" }); return; }
-  if(!await permitAccountAttempt(res,"email-delivery",v.data.email))return;
+  if(!await permitAccountAttempt(req,res,"email-delivery",v.data.email))return;
   const { error } = await publicAuthClient().auth.resetPasswordForEmail(v.data.email, { redirectTo: new URL("/reset", config.APP_URL).href });
   if (error) {
     if (["user_not_found", "email_not_found"].includes(error.code ?? "")) {
@@ -171,7 +171,7 @@ app.post("/auth/forgot", limiter, wrap(async (req, res) => {
 app.post("/auth/login", limiter, wrap(async (req, res) => {
   const v = z.object({ email, password: z.string().max(128) }).safeParse(req.body);
   if (!v.success) { res.status(401).json({ error: "Invalid credentials" }); return; }
-  if(!await permitAccountAttempt(res,"login",v.data.email))return;
+  if(!await permitAccountAttempt(req,res,"login",v.data.email))return;
   const { data, error } = await publicAuthClient().auth.signInWithPassword(v.data);
   if (error?.status === 429) { res.status(429).json({ error: "too_many_requests" }); return; }
   if (error && (error.status ?? 0) >= 500) { res.status(503).json({ error: "authentication_unavailable" }); return; }

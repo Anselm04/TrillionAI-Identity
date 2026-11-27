@@ -45,12 +45,12 @@ test("aborted legacy completion never starts another RPC",async()=>{
 });
 
 test("account abuse keys are stable across casing and separate from IP and delivery scopes",()=>{
- const a=accountRateKey(secret,"login","Example@EXAMPLE.COM");
- assert.equal(a,accountRateKey(secret,"login"," example@example.com "));
+ const a=accountRateKey(secret,"login","Example@EXAMPLE.COM","192.0.2.1");
+ assert.equal(a,accountRateKey(secret,"login"," example@example.com ","192.0.2.1"));
  assert.notEqual(a,accountRateKey(secret,"email-delivery","example@example.com"));
  assert.notEqual(a,rateKey(secret,"example@example.com"));
- assert.notEqual(a,accountRateKey(secret,"login","other@example.com"));
- assert.throws(()=>accountRateKey("short","login","example@example.com"));
+ assert.notEqual(a,accountRateKey(secret,"login","other@example.com","192.0.2.1"));
+ assert.throws(()=>accountRateKey("short","login","example@example.com","192.0.2.1"));
 });
 test("delivery suppression is neutral and login limits do not disclose account existence",()=>{
  const deny={allowed:false,remaining:0,reset_epoch:900};
@@ -60,4 +60,11 @@ test("delivery suppression is neutral and login limits do not disclose account e
  assert.equal(accountRateOutcome(scope,null),"unavailable");
  assert.equal(accountRateOutcome(scope,allow),"allow");
  }
+});
+
+test("unrelated login sources cannot exhaust the same target login bucket",()=>{
+ const first=accountRateKey(secret,"login","example@example.com","192.0.2.1");
+ assert.notEqual(first,accountRateKey(secret,"login","example@example.com","192.0.2.2"));
+ assert.throws(()=>accountRateKey(secret,"login","example@example.com"));
+ assert.equal(accountRateKey(secret,"email-delivery","example@example.com","192.0.2.1"),accountRateKey(secret,"email-delivery","example@example.com","192.0.2.2"));
 });
