@@ -1,3 +1,4 @@
+import { createReadinessCheck } from "./readiness.js";
 import { passwordlessRequestOptions } from "./passwordless.js";
 import { requireAudit, AuditUnavailableError } from "./required-audit.js";
 import { credentialIssueInput, issueServiceKey, digestServiceKey } from "./service-credentials.js";
@@ -74,6 +75,16 @@ async function audit(action: string, uid?: string) {
 }
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+// A bounded read of the role authority checks the configured PostgREST path.
+// An empty role table is valid; no rows or provider errors leave this endpoint.
+const checkReadiness=createReadinessCheck(async signal=>{
+ const {data,error}=await admin.from("identity_global_roles").select("user_id").limit(1).abortSignal(signal);
+ return !error&&Array.isArray(data);
+});
+app.get("/ready",wrap(async(_req,res)=>{
+ const ready=await checkReadiness();
+ res.status(ready?200:503).json({status:ready?"ready":"not_ready"});
+}));
 app.post("/auth/register", limiter, wrap(async (req, res) => {
   const v = z.object({ email, password }).safeParse(req.body);
   if (!v.success) { res.status(400).json({ error: "Use a valid email and password of at least 12 characters." }); return; }
