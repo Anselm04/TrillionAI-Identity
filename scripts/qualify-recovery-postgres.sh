@@ -14,3 +14,9 @@ psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261123000005_identity_sessio
 psql -X -v ON_ERROR_STOP=1 -f scripts/test-session-inventory.sql
 psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261123000006_identity_session_revoke_atomic_audit.sql
 psql -X -v ON_ERROR_STOP=1 -f scripts/test-session-atomic-audit.sql
+
+# Invitation qualification uses the existing disposable CI database.
+psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261113000001_identity_organisations.sql
+psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261120000001_identity_tenant_billing_lifecycle.sql
+psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261128000001_identity_invitation_audit.sql
+psql -X -v ON_ERROR_STOP=1 -f scripts/test-invitation-atomic-audit.sql

@@ -513,7 +513,6 @@ app.post("/v1/organisations/:id/invitations", limiter, guard(), wrap(async (req,
   const {data,error}=await admin.rpc("identity_issue_invitation",{p_actor:principal(req).uid,p_org:org.data,p_email:input.data.email,p_role:input.data.role,p_digest:invite.digest,p_expires:invite.expiresAt});
   if(error){res.status(503).json({error:"invitation_unavailable"});return;}
   if(typeof data!=="string"){res.status(404).json({error:"not_found"});return;}
-  await audit("invitation_created",principal(req).uid);
   res.status(201).json({id:data,token:invite.token,expiresAt:invite.expiresAt});
 }));
 app.post("/v1/invitations/accept",limiter,guard(),wrap(async(req,res)=>{
@@ -531,7 +530,6 @@ app.delete("/v1/organisations/:id/invitations/:inviteId",limiter,guard(),wrap(as
   const {data,error}=await admin.rpc("identity_revoke_invitation",{p_actor:principal(req).uid,p_org:ids.data.id,p_invite:ids.data.inviteId});
   if(error){res.status(503).json({error:"invitation_unavailable"});return;}
   if(data!==true){res.status(404).json({error:"not_found"});return;}
-  await audit("invitation_revoked",principal(req).uid);
   res.status(204).end();
 }));
 app.post("/v1/organisations/:id/clients",limiter,guard(),wrap(async(req,res)=>{
