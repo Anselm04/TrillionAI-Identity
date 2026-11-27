@@ -42,3 +42,18 @@ export async function enforceCombinedRate(
  return {allowed:second.allowed,remaining:Math.min(first.remaining,second.remaining),
  reset_epoch:second.allowed?Math.max(first.reset_epoch,second.reset_epoch):second.reset_epoch};
 }
+
+export type AccountRateScope="login"|"email-delivery";
+/** Address is validated by the same schema used for provider requests.
+ * Separate namespaces prevent email delivery from exhausting login quota.
+ * This is an abuse bucket, not an authenticated identity or permanent lockout. */
+export function accountRateKey(secret:string,scope:AccountRateScope,email:string):string {
+ const normalized=email.trim().toLowerCase();
+ if(secret.length<32||!["login","email-delivery"].includes(scope)||!normalized||normalized.length>254)throw Error("invalid_account_rate_identity");
+ return createHmac("sha256",secret).update(JSON.stringify(["identity:account:v1",scope,normalized])).digest("hex");
+}
+export function accountRateOutcome(scope:AccountRateScope,decision:RateDecision|null):"allow"|"unavailable"|"neutral"|"limited"{
+ if(!decision)return "unavailable";
+ if(decision.allowed)return "allow";
+ return scope==="email-delivery"?"neutral":"limited";
+}
